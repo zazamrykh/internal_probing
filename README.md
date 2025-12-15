@@ -49,6 +49,5 @@ EvalInterface. Signature
 (dataset, model, method : ScorerInterface) -> (metrics)
 
 ### Tests
-
+--tb=long flag allows traceback all info
 You can run tests as follows:
-

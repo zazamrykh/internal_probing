@@ -13,6 +13,17 @@ from src.utils.func import scores_to_log_probs
 
 class NaiveEntropySampler(SamplerInterface):
     def __init__(self, n_samples=10, sampling_batch_size=1, generation_config: Optional[GenerationConfig]=None):
+        if generation_config is None:
+            generation_config = GenerationConfig(
+                do_sample=True,
+                temperature=1.0,
+                top_p=0.9,
+                top_k=50,
+                num_beams=1,
+                output_logits=True,
+                return_dict_in_generate=True,
+            )
+
         super().__init__(n_samples=n_samples, sampling_batch_size=sampling_batch_size, generation_config=generation_config)
 
 
@@ -24,16 +35,15 @@ class NaiveEntropySampler(SamplerInterface):
         logger.debug(f'Total generated sequences will be: {len(prompts_flattened)}')
 
         for i in range(0, len(prompts_flattened), self.sampling_batch_size):
-            logger.debug(f'Passing prompts from index {i} to index {i + self.sampling_batch_size}')
+            # logger.debug(f'Passing prompts from index {i} to index {i + self.sampling_batch_size}')
             input_prompts = prompts_flattened[i : min(i + self.sampling_batch_size, len(prompts_flattened))]
 
-            output_ids, scores = generate(model, tokenizer, input_prompts, self.generation_config, return_ids = True)
+            output_ids, log_probs = generate(model, tokenizer, input_prompts, self.generation_config, return_ids=True, only_generated=True, return_log_prob=True)
+            # logger.debug(f'First three output_ids: {output_ids[:3]} and first three output_scores: {scores[:3]}')
 
-            log_probs = scores_to_log_probs(scores, output_ids)  # Here we got log_probs – lists with log probs of each generated token
             log_probs_list += log_probs
             output_ids_list += output_ids
-            scores_list += scores
-        logger.debug(f'First generated sequence is {output_ids_list[0]} with scores {scores_list[0]}')
+        logger.debug(f'First generated sequence is {tokenizer.decode(output_ids_list[0])} with scores {log_probs_list[0]}')
 
         # Now group prompts
         scores_list_grouped = []
