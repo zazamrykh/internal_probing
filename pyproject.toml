@@ -8,13 +8,21 @@ readme = "README.md"
 
 dependencies = [
     "torch>=2.9.1",
-    "transformers>=4.57.3"
+    "transformers>=4.57.3",
+    "datasets>=4.4.1",
+    "pandas>=2.3.3",
+    "accelerate>=1.12.0",
+    "wandb>=0.23.1",
+    "tenacity>=9.1.2",
+    "openai>=2.13.0",
+    "evaluate>=0.4.6"
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
     "pytest-cov",
+    "ipywidgets"
 ]
 
 [tool.pytest.ini_options]
