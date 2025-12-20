@@ -46,6 +46,33 @@ class EntailmentDeberta(BaseEntailment):
         return prediction
 
 
+class EntailmentRoBERTa(BaseEntailment):
+    def __init__(self, device=None):
+        self.name = "roberta-large-mnli"
+        self.tokenizer = AutoTokenizer.from_pretrained(self.name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.name)
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.to(self.device).eval()
+
+        self.entail_idx = 2
+        self.contra_idx = 0
+
+    def check_implication(self, premise, hypothesis, example=None):
+        inputs = self.tokenizer(
+            premise,
+            hypothesis,
+            return_tensors="pt",
+            truncation=True,
+            padding=True,
+        ).to(self.device)
+        with torch.no_grad():
+            logits = self.model(**inputs).logits
+        probs = F.softmax(logits, dim=-1)[0]
+        label_id = int(torch.argmax(probs).item())
+
+        return label_id
+
+
 class EntailmentLLM(BaseEntailment):
 
     entailment_file = 'entailment_cache.pkl'
@@ -221,7 +248,7 @@ def logsumexp_by_id(semantic_ids, log_likelihoods, agg='sum_normalized'):
         id_log_likelihoods = [log_likelihoods[i] for i in id_indices]
         if agg == 'sum_normalized':
             # log_lik_norm = id_log_likelihoods - np.prod(log_likelihoods)
-            log_lik_norm = id_log_likelihoods - np.log(np.sum(np.exp(log_likelihoods)))
+            log_lik_norm = id_log_likelihoods - np.log(np.sum(np.exp(log_likelihoods)))  # p(cluster) / p(total) = sum p(sen from cluster) / p(total)
             logsumexp_value = np.log(np.sum(np.exp(log_lik_norm)))
         else:
             raise ValueError
