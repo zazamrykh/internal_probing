@@ -46,31 +46,37 @@ class EntailmentDeberta(BaseEntailment):
         return prediction
 
 
-class EntailmentRoBERTa(BaseEntailment):
-    def __init__(self, device=None):
-        self.name = "roberta-large-mnli"
-        self.tokenizer = AutoTokenizer.from_pretrained(self.name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.name)
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.model.to(self.device).eval()
+class EntailmentRoBERTa:
+    def __init__(self, model="roberta-large-mnli"):
+        self.tokenizer = AutoTokenizer.from_pretrained(model)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model).to(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+        self.device = self.model.device
+        self.model.eval()
 
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.model.config.pad_token_id = self.tokenizer.pad_token_id
+        
+        # MNLI labels: 0=contradiction, 1=neutral, 2=entailment
         self.entail_idx = 2
         self.contra_idx = 0
 
     def check_implication(self, premise, hypothesis, example=None):
         inputs = self.tokenizer(
-            premise,
-            hypothesis,
+            premise, hypothesis,
             return_tensors="pt",
-            truncation=True,
             padding=True,
+            truncation=True,
         ).to(self.device)
+        
         with torch.no_grad():
             logits = self.model(**inputs).logits
         probs = F.softmax(logits, dim=-1)[0]
         label_id = int(torch.argmax(probs).item())
-
         return label_id
+
 
 
 class EntailmentLLM(BaseEntailment):
