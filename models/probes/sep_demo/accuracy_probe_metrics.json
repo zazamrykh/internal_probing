@@ -1,0 +1,18 @@
+{
+  "position": -2,
+  "layer": 20,
+  "target": "is_correct",
+  "k_folds": 5,
+  "max_iter": 500,
+  "C": 1.0,
+  "solver": "lbfgs",
+  "cv_auc_mean": 0.7948665458937197,
+  "cv_auc_std": 0.054442900749797705,
+  "cv_logloss_mean": 0.5980143078129824,
+  "cv_logloss_std": 0.10978366256184122,
+  "test_auc": 0.8088888888888889,
+  "test_logloss": 0.623449836772306,
+  "n_trainval": 240,
+  "n_test": 60,
+  "n_iter_used": 59
+}

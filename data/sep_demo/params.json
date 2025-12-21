@@ -1,0 +1,26 @@
+{
+  "SEED": 42,
+  "n_samples": 300,
+  "n_train": 200,
+  "n_val": 40,
+  "n_test": 60,
+  "shuffle_buffer": 10000,
+  "split_name": "validation",
+  "MODEL": "../models/mistral-7b-instruct",
+  "ENTAILMENT_MODEL": "../models/roberta-large-mnli",
+  "max_new_tokens_greedy": 64,
+  "greedy_do_sample": false,
+  "use_chat_template": true,
+  "SYSTEM_PROMPT": "Answer as briefly as possible. Prefer one or a few words. Do not add explanations.",
+  "layers_to_capture": [
+    0,
+    20,
+    31
+  ],
+  "positions_generated": [
+    0,
+    -2
+  ],
+  "SE_SAMPLING_N": 10,
+  "max_new_tokens_sampling": 64
+}
