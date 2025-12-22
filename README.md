@@ -1,3 +1,12 @@
+At the current moment framework mostly not implemented. But here I have as for me quite good, relatively short and easy (both gpu and difficulty poin of view) notebooks with semantic entropy and semantic entropy probes demonstration. You can find them at
+
+- notebooks/semantic_entropy.ipynb
+- notebooks/semantic_entropy_probes.ipynb
+
+directories. SE notebook shows light example of method, using function from original repository, SEP notebook is larger but complete, It repeats many steps from SEP paper, but for one model and for one dataset.
+
+I have 32 gb RAM and 3060 nvidia 12 gb VRAM. For demo notebooks it is suffisient.
+
 ### Internal states probing for prediction uncertainity
 
 Answer accuracy ~ hallucination ~ uncertainty
