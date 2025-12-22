@@ -1,18 +1,18 @@
 {
   "position": -2,
-  "layer": 20,
+  "layer": 16,
   "target": "se_binary",
   "k_folds": 5,
   "max_iter": 500,
   "C": 1.0,
   "solver": "lbfgs",
-  "cv_auc_mean": 0.8045808966861598,
-  "cv_auc_std": 0.02930898837676615,
-  "cv_logloss_mean": 0.559508713466989,
-  "cv_logloss_std": 0.06358494973778005,
-  "test_auc": 0.7546296296296297,
-  "test_logloss": 0.7239757746579356,
-  "n_trainval": 240,
-  "n_test": 60,
-  "n_iter_used": 75
+  "cv_auc_mean": 0.8446247306337573,
+  "cv_auc_std": 0.008362565153465113,
+  "cv_logloss_mean": 0.5367667787179454,
+  "cv_logloss_std": 0.020867655189732104,
+  "test_auc": 0.8329503676470588,
+  "test_logloss": 0.5242082349964786,
+  "n_trainval": 3000,
+  "n_test": 500,
+  "n_iter_used": 94
 }

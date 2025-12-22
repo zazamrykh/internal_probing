@@ -1,9 +1,9 @@
 {
   "SEED": 42,
-  "n_samples": 300,
-  "n_train": 200,
-  "n_val": 40,
-  "n_test": 60,
+  "n_samples": 3500,
+  "n_train": 2500,
+  "n_val": 500,
+  "n_test": 500,
   "shuffle_buffer": 10000,
   "split_name": "validation",
   "MODEL": "../models/mistral-7b-instruct",
@@ -14,7 +14,13 @@
   "SYSTEM_PROMPT": "Answer as briefly as possible. Prefer one or a few words. Do not add explanations.",
   "layers_to_capture": [
     0,
+    4,
+    8,
+    12,
+    16,
     20,
+    24,
+    28,
     31
   ],
   "positions_generated": [
