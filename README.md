@@ -11,52 +11,40 @@ I have 32 gb RAM and 3060 nvidia 12 gb VRAM. For demo notebooks it is suffisient
 
 Answer accuracy ~ hallucination ~ uncertainty
 
-### Requirements
-torch of
 ### Main modules:
 
-1) Uncertainity estimation (ue)
+1) Scoring
 
-Description: estimators of uncertainity of model answer for particulary prompt.
+Description: estimators of uncertainity of model answer for particulary prompt or predict other score. Greated score means more hallucination probability / more uncertainty / more diversity in answers / more inaccurate answers.
 
 Examples: semantic entropy, kernel language entropy, inside, reward model, naive entropy, log likelyhood, accuracy, linear probes internal states.
 
 ScorerInterface. Signature:
 
-(model, prompts, answer, activation) -> (score)
+(ScorerInput) -> (score)
+
+ScorerInput is different for each type of scorer. It inherits ScorerInput base class
 
 SamplerInterface(inherits ScorerInterface). Signature:
-(model, prompts, answer=None, activation=None) -> (score)
+(SamplerInput) -> (score). Commonly it invoces model multiple times and define how diffirent generations are.
 
-ProbeInterface(inherits ScorerInterface). Signature:
-(model=None, prompts=None, answer=None, activation=not None) -> (score)
+SamplerInput is prompts and ModelWrapper
 
-2) Activation extractor
+LinearProbeScorer(inherits ScorerInterface). Signature:
+(ProbeInput) -> (score)
+ProbeInput is activations (torch Tensor)
 
-Description: extracts activations of model from specific layer / token position / activation part for any model and prompt + answer
+2) Model
 
-ActivationExtractorInterface. Signature:
+Description: model wrapper with prepare_inputs, generate and extract_activations_reforward methods
+Main purpose is unification of generation process. For example gpt2 has no apply_chat_template functionality while modern models have.
 
-(model, prompts + answers concat) -> (activation tensor)
-
-It can be implemented with standart HuggingFace transformers lib with output_hidden_states=True. It is simple but consumes more memory (it returns hidden states for each layer) and it is impossible to access concrete mlp or attention activation. Also it can be implemented with TransformerLens library, it is more convinient because of flexibility. But in practice in real time scenario pytorch hooks is more preferred because is fast and do not reqiures additional packages.
+Other .py files are implementation of base ModelWrapper class
 
 3) Dataset
 
-Torch dataset
-
-Description:
-- Datasets with common prompts such as BioASQ, TriviaQA, NQ Open, SQuAD. Module suppose to transform datasets to unified formats.
-- Datasets with stored extracted activation and assosiated score with meta info about model, layer, token, activation_type, which score used.
-
-4) Metrics
-
-Description: metrics should estimates how well predicted score is correlating with accuracy label. It suppose to infer some method of uncertainty prediction, mark 1 if answer is not confidence and 0 if confident. Than we calculate how many labels coincident with GT – whether model answer is correct. So module gets dataset, model, method UE. It infer model, estimates uncertainty, calculates metrics (auc / prec / rec).
-
-EvalInterface. Signature
-
-(dataset, model, method : ScorerInterface) -> (metrics)
-
 ### Tests
 --tb=long flag allows traceback all info
-You can run tests as follows:
+Some tests related to models would require it. So ypu can place loaclly model to models directory otherwise it will be downloaded.
+
+You should run tests from tests subfolder.

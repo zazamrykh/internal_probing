@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from typing import List, Optional, Union
-from uncertainity_estimation.sampling.base import SamplerInterface
+from scoring.sampling.base import SamplerInterface
 from utils.generation import generate
 from src.utils.func import scores_to_log_probs
 

@@ -148,3 +148,5 @@ def generate(model,
         return texts, scores_list
     else:
         return trunc_seq_list, scores_list
+
+a = 3

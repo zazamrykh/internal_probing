@@ -18,7 +18,8 @@ dependencies = [
     "evaluate>=0.4.6",
     "bitsandbytes>=0.49.0",
     "scikit-learn>=1.8.0",
-    "matplotlib>=3.10.8"
+    "matplotlib>=3.10.8",
+    "typing_extensions>=4.15.0"
 ]
 
 [project.optional-dependencies]
