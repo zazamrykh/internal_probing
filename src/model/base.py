@@ -293,10 +293,7 @@ class ModelWrapper(ABC):
         for pos in positions:
             # Convert position to absolute index in generated part
             idx = pos if pos >= 0 else gen_len + pos
-            if idx < 0 or idx >= gen_len:
-                raise ValueError(
-                    f"Position {pos} out of range for generated length {gen_len}"
-                )
+            idx = max(0, min(idx, gen_len - 1))  # Clamping to available diapasone
 
             # Absolute position in full sequence
             full_pos = prompt_len + idx

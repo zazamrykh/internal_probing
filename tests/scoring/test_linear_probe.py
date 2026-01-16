@@ -191,7 +191,7 @@ def test_linear_probe_single_sample(mock_sep_probe):
 
 def test_linear_probe_wrong_input_type(mock_sep_probe):
     """Test that scorer raises error for wrong input type."""
-    from src.scoring.inputs import SamplerInput
+    from src.scoring.sampling.inputs import SamplerInput
     from unittest.mock import Mock
 
     scorer = LinearProbeScorer(probe_model=mock_sep_probe, probe_type="sep")

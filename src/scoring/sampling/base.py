@@ -11,7 +11,7 @@ import torch
 from transformers import GenerationConfig
 
 from src.scoring.base import ScorerInterface
-from src.scoring.inputs import SamplerInput
+from src.scoring.sampling.inputs import SamplerInput
 
 
 class SamplerInterface(ScorerInterface):

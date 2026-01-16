@@ -83,6 +83,7 @@ class TriviaQADataset(BaseDataset):
         shuffle: bool = True,
         seed: int = 42,
         shuffle_buffer: int = 10000,
+        streaming: bool = True,
         **kwargs
     ) -> "TriviaQADataset":
         """
@@ -106,7 +107,7 @@ class TriviaQADataset(BaseDataset):
             "mandarjoshi/trivia_qa",
             "rc.nocontext",
             split=split,
-            streaming=True,
+            streaming=streaming,
         )
 
         # Shuffle if requested

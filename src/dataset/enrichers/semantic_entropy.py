@@ -10,7 +10,7 @@ from typing import Optional
 
 from src.dataset.enrichers.base import BaseEnricher
 from src.scoring.sampling.semantic_entropy import SemanticEntropyScorer
-from src.scoring.inputs import SamplerInput
+from src.scoring.sampling.inputs import SamplerInput
 
 
 class SemanticEntropyEnricher(BaseEnricher):

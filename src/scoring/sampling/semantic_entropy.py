@@ -17,7 +17,7 @@ import torch.nn.functional as F
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, GenerationConfig
 
 from src.scoring.sampling.base import SamplerInterface
-from src.scoring.inputs import SamplerInput
+from src.scoring.sampling.inputs import SamplerInput
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,7 @@ class SemanticEntropyScorer(SamplerInterface):
 
     Example:
         >>> from src.model import GPT2Model
-        >>> from src.scoring.inputs import SamplerInput
+        >>> from src.scoring.sampling.inputs import SamplerInput
         >>>
         >>> # Initialize
         >>> scorer = SemanticEntropyScorer(

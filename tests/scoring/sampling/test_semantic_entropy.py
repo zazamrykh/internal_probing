@@ -10,7 +10,7 @@ import pytest
 
 from src.model import MistralModel
 from src.scoring.sampling.semantic_entropy import SemanticEntropyScorer
-from src.scoring.inputs import SamplerInput
+from src.scoring.sampling.inputs import SamplerInput
 
 logger = logging.getLogger(__name__)
 

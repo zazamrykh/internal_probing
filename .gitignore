@@ -3,3 +3,5 @@
 .vscode/
 models/
 data/
+.codeassistant
+.pytest_cache

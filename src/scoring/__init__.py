@@ -8,9 +8,8 @@ This module provides interfaces and implementations for various scoring methods:
 """
 
 from src.scoring.base import ScorerInterface
-from src.scoring.inputs import ScorerInput, SamplerInput, ProbeInput, RewardModelInput
+from src.scoring.inputs import ScorerInput, ProbeInput, RewardModelInput
 from src.scoring.linear_probe import LinearProbeScorer
-from src.scoring.sampling.base import SamplerInterface
 
 __all__ = [
     "ScorerInterface",
@@ -19,5 +18,4 @@ __all__ = [
     "ProbeInput",
     "RewardModelInput",
     "LinearProbeScorer",
-    "SamplerInterface",
 ]
