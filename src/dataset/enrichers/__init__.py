@@ -9,10 +9,12 @@ from src.dataset.enrichers.base import BaseEnricher
 from src.dataset.enrichers.generation import GreedyGenerationEnricher
 from src.dataset.enrichers.activation import ActivationEnricher
 from src.dataset.enrichers.semantic_entropy import SemanticEntropyEnricher
+from src.dataset.enrichers.factory import EnricherFactory
 
 __all__ = [
     "BaseEnricher",
     "GreedyGenerationEnricher",
     "ActivationEnricher",
     "SemanticEntropyEnricher",
+    "EnricherFactory",
 ]

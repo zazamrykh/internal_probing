@@ -165,6 +165,8 @@ class BaseDataset(ABC):
         """
         Save dataset to file.
 
+        Saves both data and class information for proper reconstruction.
+
         Args:
             path: Output file path
             format: Save format - "pickle", "json", or "torch"
@@ -173,11 +175,22 @@ class BaseDataset(ABC):
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if format == "pickle" or format == "pkl":
+            # Save both data and class info
+            save_dict = {
+                'data': self._data,
+                'class': self.__class__,
+                'name': self.name
+            }
             with open(path, 'wb') as f:
-                pickle.dump(self._data, f)
+                pickle.dump(save_dict, f)
 
         elif format == "torch" or format == "pt":
-            torch.save(self._data, path)
+            save_dict = {
+                'data': self._data,
+                'class': self.__class__,
+                'name': self.name
+            }
+            torch.save(save_dict, path)
 
         elif format == "json":
             # Convert any torch tensors to lists for JSON serialization
@@ -202,6 +215,8 @@ class BaseDataset(ABC):
         """
         Load dataset from file.
 
+        Automatically reconstructs the correct dataset class.
+
         Args:
             path: Path to saved dataset
             **kwargs: Additional arguments for dataset constructor
@@ -209,7 +224,28 @@ class BaseDataset(ABC):
         Returns:
             Loaded dataset instance
         """
-        return cls(data=path, **kwargs)
+        path = Path(path)
+
+        # Load the file
+        if path.suffix in ['.pkl', '.pickle']:
+            with open(path, 'rb') as f:
+                loaded = pickle.load(f)
+        elif path.suffix in ['.pt']:
+            loaded = torch.load(path)
+        else:
+            # Fallback to old behavior for JSON
+            return cls(data=path, **kwargs)
+
+        # Check if it's new format (dict with class info) or old format (just list)
+        if isinstance(loaded, dict) and 'class' in loaded and 'data' in loaded:
+            # New format: use saved class
+            dataset_class = loaded['class']
+            data = loaded['data']
+            name = loaded.get('name')
+            return dataset_class(data=data, name=name, **kwargs)
+        else:
+            # Old format: use cls (may fail for BaseDataset)
+            return cls(data=loaded if isinstance(loaded, list) else path, **kwargs)
 
     def get_subset(self, indices: list[int]) -> "BaseDataset":
         """

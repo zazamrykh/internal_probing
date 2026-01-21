@@ -1,0 +1,54 @@
+# Example config for enrichment-only mode
+# This will only load dataset, apply enrichers, and save enriched datasets
+# No probe training or evaluation will be performed
+
+[experiment]
+name = "enrichment_only_demo"
+output_dir = "exp_results/enrichment_only_demo"
+seed = 42
+only_enrichment = true  # Enable enrichment-only mode
+
+[dataset]
+dataset_type = "triviaqa"
+split = "validation"
+n_samples = 30
+n_train = 10
+n_val = 10
+n_test = 10
+seed = 42
+shuffle_buffer = 10000
+
+[model]
+model_type = "mistral-7b-instruct"
+model_name_or_path = "mistralai/Mistral-7B-Instruct-v0.1"
+device_map = "auto"
+quantization = "8bit"
+system_prompt = "Answer briefly."
+evaluator = "substring_match"
+
+[enrichment]
+save_enriched = true  # Must be true for enrichment-only mode
+
+# Enrichment pipeline
+[[enrichment.pipeline]]
+type = "greedy_generation"
+max_new_tokens = 64
+verbose = true
+
+[[enrichment.pipeline]]
+type = "activation"
+layers = [0, 8, 16, 24, 31]
+positions = [0, -2]  # TBG and SLT
+verbose = true
+
+[[enrichment.pipeline]]
+type = "semantic_entropy"
+n_samples = 2
+entailment_model = "roberta-large-mnli"
+sampling_batch_size = 1
+binarize = true
+fit_gamma = true
+add_weights = true
+verbose = true
+
+# Note: probe and training sections are not required in enrichment-only mode

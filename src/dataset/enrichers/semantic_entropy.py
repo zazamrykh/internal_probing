@@ -32,6 +32,7 @@ class SemanticEntropyEnricher(BaseEnricher):
     def __init__(
         self,
         scorer: SemanticEntropyScorer,
+        model_wrapper=None,
         binarize: bool = True,
         gamma: Optional[float] = None,
         fit_gamma: bool = True,
@@ -44,6 +45,7 @@ class SemanticEntropyEnricher(BaseEnricher):
 
         Args:
             scorer: SemanticEntropyScorer instance for SE computation
+            model_wrapper: ModelWrapper for generation (can be set later)
             binarize: Whether to binarize SE into high/low
             gamma: Threshold for binarization (None = auto-compute)
             fit_gamma: Whether to fit gamma from data
@@ -53,6 +55,7 @@ class SemanticEntropyEnricher(BaseEnricher):
         """
         super().__init__(inplace=inplace, verbose=verbose)
         self.scorer = scorer
+        self.model_wrapper = model_wrapper
         self.binarize = binarize
         self.gamma = gamma
         self.fit_gamma = fit_gamma
@@ -61,24 +64,31 @@ class SemanticEntropyEnricher(BaseEnricher):
         # Store SE values for gamma fitting
         self._se_values_for_gamma = []
 
-    def enrich_sample(self, sample: dict, model_wrapper, **kwargs) -> dict:
+    def enrich_sample(self, sample: dict, model_wrapper=None, **kwargs) -> dict:
         """
         Add semantic entropy to sample.
 
         Args:
             sample: Sample dict with 'prompt' field
-            model_wrapper: ModelWrapper for generation
+            model_wrapper: ModelWrapper for generation (optional if set in __init__)
             **kwargs: Override parameters
 
         Returns:
             Sample with SE fields added
         """
+        # Use provided model_wrapper or fall back to stored one
+        wrapper = model_wrapper or self.model_wrapper
+        if wrapper is None:
+            raise ValueError(
+                "model_wrapper must be provided either in __init__ or enrich_sample"
+            )
+
         prompt = sample['prompt']
 
         # Create input for scorer
         scorer_input = SamplerInput(
             prompts=[prompt],
-            model_wrapper=model_wrapper
+            model_wrapper=wrapper
         )
 
         # Compute SE with details
@@ -98,10 +108,10 @@ class SemanticEntropyEnricher(BaseEnricher):
     def enrich_dataset(
         self,
         dataset,
-        model_wrapper,
+        model_wrapper=None,
         verbose_every: Optional[int] = 100,
         **kwargs
-    ) -> list[dict]:
+    ):
         """
         Enrich entire dataset with SE, including binarization if requested.
 
@@ -109,13 +119,20 @@ class SemanticEntropyEnricher(BaseEnricher):
 
         Args:
             dataset: Dataset to enrich
-            model_wrapper: ModelWrapper for generation
+            model_wrapper: ModelWrapper for generation (optional if set in __init__)
             verbose_every: Print progress every N samples
             **kwargs: Additional parameters
 
         Returns:
-            List of enriched samples
+            Dataset of same type as input
         """
+        # Use provided model_wrapper or fall back to stored one
+        wrapper = model_wrapper or self.model_wrapper
+        if wrapper is None:
+            raise ValueError(
+                "model_wrapper must be provided either in __init__ or enrich_dataset"
+            )
+
         # Reset SE values for gamma fitting
         self._se_values_for_gamma = []
 
@@ -124,13 +141,21 @@ class SemanticEntropyEnricher(BaseEnricher):
         output = super().enrich_dataset(
             dataset,
             verbose_every=verbose_every,
-            model_wrapper=model_wrapper,
+            model_wrapper=wrapper,
             **kwargs
         )
 
+        # Extract samples from output (could be dataset or list)
+        if hasattr(output, '_data'):
+            samples = output._data
+            dataset_class = type(output)
+        else:
+            samples = output
+            dataset_class = None
+
         # Second pass: binarization if requested
         if self.binarize:
-            se_arr = np.array([s['se_raw'] for s in output], dtype=float)
+            se_arr = np.array([s['se_raw'] for s in samples], dtype=float)
 
             # Determine gamma
             if self.gamma is None:
@@ -153,12 +178,16 @@ class SemanticEntropyEnricher(BaseEnricher):
                 se_weight = np.ones_like(se_arr, dtype=float)
 
             # Add to samples
-            for sample, y, w in zip(output, se_binary.tolist(), se_weight.tolist()):
+            for sample, y, w in zip(samples, se_binary.tolist(), se_weight.tolist()):
                 sample['se_gamma'] = float(gamma)
                 sample['se_binary'] = int(y)
                 sample['se_weight'] = float(w)
 
-        return output
+        # Return same type as output from parent
+        if dataset_class is not None:
+            return dataset_class(samples)
+        else:
+            return samples
 
     @staticmethod
     def _find_optimal_threshold(se_values: np.ndarray) -> float:

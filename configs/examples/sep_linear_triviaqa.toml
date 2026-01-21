@@ -1,0 +1,65 @@
+# Semantic Entropy Probes - Linear Probes on TriviaQA (TODO: Test and debug it)
+# Reproduces the workflow from sep_with_framework.ipynb
+
+[experiment]
+name = "sep_linear_triviaqa_demo"
+output_dir = "exp_results/sep_linear_demo"
+seed = 42
+
+[dataset]
+dataset_type = "triviaqa"
+split = "validation"
+n_samples = 21  # n_samples = n_train + n_val + n_test
+n_train = 7
+n_val = 7
+n_test = 7
+shuffle_buffer = 10000
+
+[model]
+model_type = "mistral-7b-instruct"
+model_name_or_path = "mistralai/Mistral-7B-Instruct-v0.1"
+system_prompt = "Answer briefly."
+quantization = "8bit"  # Options: "8bit", "4bit", "none"
+device_map = "auto"
+evaluator = "substring_match"
+
+# Enrichment pipeline - applied sequentially
+[[enrichment.pipeline]]
+type = "greedy_generation"
+max_new_tokens = 64
+verbose = true
+
+[[enrichment.pipeline]]
+type = "activation"
+layers = [0, 4, 8, 12, 16, 20, 24, 28, 31]
+positions = [0, -2]  # TBG and SLT
+verbose = true
+
+[[enrichment.pipeline]]
+type = "semantic_entropy"
+n_samples = 2
+entailment_model = "roberta-large-mnli"
+sampling_batch_size = 1
+binarize = true
+fit_gamma = true
+add_weights = true
+verbose = true
+
+[enrichment]
+save_enriched = true  # Save enriched datasets for reuse
+
+[probe]
+probe_type = "linear"
+
+[training]
+positions = [0, -2]
+layers = [0, 8, 16, 24, 31]
+targets = ["se_binary", "is_correct"]
+k_folds = 5
+weight_field = "se_weight"
+use_weights_for_targets = ["se_binary"]  # Only use weights for SE
+
+[training.probe_params]
+C = 1.0
+max_iter = 500
+solver = "lbfgs"

@@ -16,6 +16,7 @@ from sklearn.metrics import roc_auc_score
 from copy import deepcopy
 
 from src.dataset.base import BaseDataset
+from src.training.base import BaseProbeTrainer
 from src.training.utils import (
     build_Xy_from_dataset,
     compute_cv_metrics,
@@ -24,7 +25,7 @@ from src.training.utils import (
 )
 
 
-class ProbeManager:
+class ProbeManager(BaseProbeTrainer):
     """
     Manager for training and evaluating linear probes on internal activations.
 
@@ -77,9 +78,9 @@ class ProbeManager:
             probe_params: Parameters for probe initialization
             seed: Random seed for reproducibility
         """
+        super().__init__(seed=seed)
         self.probe_class = probe_class
         self.probe_params = probe_params or {}
-        self.seed = seed
 
     def _create_probe(self) -> Any:
         """Create new probe instance with configured parameters."""
@@ -301,117 +302,7 @@ class ProbeManager:
 
         return final_probe, metrics
 
-    def train_every_combination(
-        self,
-        train_data: Union[BaseDataset, list[dict]],
-        val_data: Union[BaseDataset, list[dict]],
-        test_data: Union[BaseDataset, list[dict]],
-        positions: list[int],
-        layers: list[int],
-        targets: Optional[list[str]] = None,
-        k_folds: int = 5,
-        weight_field: Optional[str] = None,
-        use_weights_for_targets: Optional[list[str]] = None,
-        eval: bool = True,
-        verbose: bool = True
-    ) -> list[dict]:
-        """
-        Train probes for all combinations of positions, layers, and targets.
-
-        Similar to the training loop in semantic_entropy_probes.ipynb (lines 1581-1643).
-
-        Args:
-            train_data: Training dataset
-            val_data: Validation dataset
-            test_data: Test dataset
-            positions: List of token positions to try
-            layers: List of layer indices to try
-            targets: List of target fields (default: ['se_binary', 'is_correct'])
-            k_folds: Number of CV folds
-            weight_field: Sample weights field name
-            use_weights_for_targets: List of targets to use weights for (default: None)
-            eval: Whether to compute evaluation metrics
-            verbose: Whether to print progress
-
-        Returns:
-            List of dicts, each containing:
-                - 'position': int
-                - 'layer': int
-                - 'target': str
-                - 'probe': trained model
-                - 'metrics': dict (if eval=True)
-
-        Example:
-            >>> results = manager.train_every_combination(
-            ...     train_data, val_data, test_data,
-            ...     positions=[0, -2],
-            ...     layers=[0, 8, 16, 24, 31],
-            ...     targets=['se_binary', 'is_correct'],
-            ...     k_folds=5,
-            ...     weight_field='se_weight',
-            ...     use_weights_for_targets=['se_binary']
-            ... )
-            >>> print(f"Trained {len(results)} probes")
-        """
-        if targets is None:
-            targets = ['se_binary', 'is_correct']
-
-        if use_weights_for_targets is None:
-            use_weights_for_targets = []
-
-        all_results = []
-
-        total_combinations = len(targets) * len(positions) * len(layers)
-        current = 0
-
-        for target in targets:
-            for pos in positions:
-                for layer in layers:
-                    current += 1
-
-                    # Determine if we should use weights for this target
-                    use_w = target in use_weights_for_targets
-
-                    # Train probe
-                    probe, metrics = self.train_cv(
-                        train_data, val_data, test_data,
-                        position=pos,
-                        layer=layer,
-                        target_field=target,
-                        k_folds=k_folds,
-                        weight_field=weight_field if use_w else None,
-                        compute_metrics=eval
-                    )
-
-                    result = {
-                        'position': pos,
-                        'layer': layer,
-                        'target': target,
-                        'probe': probe,
-                    }
-
-                    if eval:
-                        result['metrics'] = metrics
-                        # Also add metrics at top level for easier access
-                        result.update(metrics)
-
-                    all_results.append(result)
-
-                    if verbose:
-                        if eval and 'cv_auc_mean' in metrics:
-                            print(
-                                f"[{current}/{total_combinations}] "
-                                f"target={target}, pos={pos}, layer={layer}: "
-                                f"cv_auc={metrics['cv_auc_mean']:.3f}±{metrics['cv_auc_std']:.3f}, "
-                                f"test_auc={metrics['test_auc']:.3f}"
-                            )
-                        else:
-                            print(
-                                f"[{current}/{total_combinations}] "
-                                f"Trained: target={target}, pos={pos}, layer={layer}"
-                            )
-
-        return all_results
+    # train_every_combination is inherited from BaseProbeTrainer with default implementation
 
     def get_probe_predictions_on_test(
         self,

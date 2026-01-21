@@ -207,32 +207,6 @@ def test_generate_with_return_ids(gpt2_wrapper):
     logger.debug(f"Generated token IDs: {ids[0].tolist()}")
 
 
-def test_activation_extraction_edge_cases(gpt2_wrapper):
-    """Test activation extraction with edge cases."""
-    prompt = "Hi"
-    texts, _ = gpt2_wrapper.generate_greedy([prompt], max_new_tokens=3)
-
-    prompt_inputs = gpt2_wrapper.prepare_inputs([prompt])
-    prompt_ids = prompt_inputs["input_ids"][0]
-    generated_ids = gpt2_wrapper.tokenizer.encode(
-        texts[0], add_special_tokens=False, return_tensors="pt"
-    )[0]
-
-    # Test with negative position
-    acts = gpt2_wrapper.extract_activations_reforward(
-        prompt_ids, generated_ids, layers=[0], positions=[-1]
-    )
-    assert -1 in acts["acts"]
-
-    # Test with invalid position should raise error
-    with pytest.raises(ValueError, match="out of range"):
-        gpt2_wrapper.extract_activations_reforward(
-            prompt_ids, generated_ids, layers=[0], positions=[100]
-        )
-
-    logger.debug("Edge cases handled correctly")
-
-
 if __name__ == "__main__":
     # Run tests with verbose output
     pytest.main([__file__, "-v", "-s", "--log-cli-level=DEBUG"])

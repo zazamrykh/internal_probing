@@ -8,7 +8,9 @@ Provides:
 - I/O functions for model persistence
 """
 
+from src.training.base import BaseProbeTrainer
 from src.training.probe_manager import ProbeManager
+from src.training.pep_trainer import PEPTrainer
 from src.training.utils import (
     build_Xy_from_dataset,
     compute_cv_metrics,
@@ -27,8 +29,11 @@ from src.training.io import (
 )
 
 __all__ = [
-    # Main class
+    # Base class
+    'BaseProbeTrainer',
+    # Main classes
     'ProbeManager',
+    'PEPTrainer',
     # Utilities
     'build_Xy_from_dataset',
     'compute_cv_metrics',

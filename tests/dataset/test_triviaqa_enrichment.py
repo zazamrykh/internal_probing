@@ -138,8 +138,10 @@ def test_triviaqa_enrichment_pipeline(triviaqa_dataset, gpt2_model):
         sampling_batch_size=1
     )
 
+    # Now we can pass model_wrapper in constructor
     se_enricher = SemanticEntropyEnricher(
         scorer=se_scorer,
+        model_wrapper=gpt2_model,  # Pass model_wrapper here
         binarize=True,
         fit_gamma=True,
         add_weights=False,
@@ -147,9 +149,9 @@ def test_triviaqa_enrichment_pipeline(triviaqa_dataset, gpt2_model):
         verbose=True
     )
 
+    # Can call without model_wrapper since it's stored
     enriched_data = se_enricher.enrich_dataset(
         enriched_data,
-        model_wrapper=gpt2_model,
         verbose_every=1
     )
 

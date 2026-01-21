@@ -7,6 +7,7 @@ Tests semantic entropy calculation on simple vs complex questions.
 import logging
 from pathlib import Path
 import pytest
+import torch
 
 from src.model import MistralModel
 from src.scoring.sampling.semantic_entropy import SemanticEntropyScorer
@@ -25,18 +26,21 @@ def mistral_wrapper():
 
     model_path = LOCAL_PATH if Path(LOCAL_PATH).exists() else HF_NAME
 
-    quant_config = MistralModel.get_quantization_config(load_in_8bit=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path,
-        quantization_config=quant_config,
-        device_map="auto",
-    )
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    try:
+        quant_config = MistralModel.get_quantization_config(load_in_8bit=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            quantization_config=quant_config,
+            device_map="auto",
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    wrapper = MistralModel(model, tokenizer)
-    logger.debug(f"Loaded Mistral on device: {wrapper.device}")
+        wrapper = MistralModel(model, tokenizer)
+        logger.debug(f"Loaded Mistral on device: {wrapper.device}")
 
-    return wrapper
+        return wrapper
+    except (ValueError, RuntimeError) as e:
+        pytest.skip(f"Cannot load Mistral model (insufficient GPU memory or device issues): {e}")
 
 
 @pytest.fixture(scope="module")
@@ -67,6 +71,8 @@ def test_semantic_entropy_simple_vs_complex(mistral_wrapper, semantic_entropy_sc
 
     Note: This test uses logger.warning instead of hard assert because
     model behavior can vary.
+
+    This test may be skipped if there's insufficient memory (OOM error).
     """
     prompts = [
         "What is 2+2?",  # Simple, should have low entropy

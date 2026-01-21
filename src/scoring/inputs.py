@@ -37,6 +37,23 @@ class ProbeInput(ScorerInput):
 
 
 @dataclass
+class PromptEmbeddingInput(ScorerInput):
+    """
+    Input for prompt embedding probe-based uncertainty estimation.
+
+    Used by PEPModel (Prompt Embedding Probe Model) that learns soft prompt embeddings
+    and applies a probe to internal activations.
+
+    Attributes:
+        prompt: Text prompt to score
+        answer: Optional pre-generated answer. If provided, scores the prompt+answer pair.
+                If None, generates answer internally before scoring.
+    """
+    prompt: str
+    answer: Optional[str] = None
+
+
+@dataclass
 class RewardModelInput(ScorerInput):
     """
     (Maybe for future)

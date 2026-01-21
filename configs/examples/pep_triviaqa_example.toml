@@ -1,0 +1,79 @@
+# Prompt Embedding Probes (PEP) on TriviaQA (TODO: Test and debug it)
+# Example configuration for training PEP models
+
+[experiment]
+name = "pep_triviaqa_example"
+output_dir = "exp_results/pep_example"
+seed = 42
+
+[dataset]
+enriched_path = "exp_results/pep_example/enriched_datasets"
+dataset_type = "triviaqa"
+split = "validation"
+n_samples = 30
+n_train = 10
+n_val = 10
+n_test = 10
+
+[model]
+model_type = "mistral-7b-instruct"
+model_name_or_path = "mistralai/Mistral-7B-Instruct-v0.1"
+system_prompt = "Answer briefly."
+quantization = "8bit"  # Options: "8bit", "4bit", "none"
+device_map = "auto"
+evaluator = "substring_match"
+
+# Enrichment pipeline
+[[enrichment.pipeline]]
+type = "greedy_generation"
+max_new_tokens = 64
+verbose = true
+
+[[enrichment.pipeline]]
+type = "activation"
+layers = [0, 8, 16, 24, 31]
+positions = [0, -2]  # TBG and SLT
+verbose = true
+
+[[enrichment.pipeline]]
+type = "semantic_entropy"
+n_samples = 2
+entailment_model = "roberta-large-mnli"
+sampling_batch_size = 1
+binarize = true
+fit_gamma = true
+add_weights = true
+verbose = true
+
+[enrichment]
+save_enriched = true  # Save enriched datasets for reuse
+
+[probe]
+probe_type = "pep"  # or "prompt_embedding"
+
+[training]
+layers = [0, 8, 16, 24, 31]
+positions = [0, -2]
+targets = ["is_correct"]
+use_cv = false  # Simple training without CV (faster)
+
+[training.pep_params]
+n_embeddings = 1
+learning_rate = 0.001
+n_epochs = 10
+batch_size = 8
+weight_decay = 0.0
+optimizer = "adam"
+
+# Early stopping parameters (optional)
+early_stopping_patience = 5  # Stop if no improvement for N validation checks
+early_stopping_metric = "auc"  # Metric to use: "auc" or "loss"
+val_check_interval = 10  # Validate every N iterations/batches
+
+# Best model tracking (optional)
+save_best_model = true  # Return best model instead of final
+# checkpoint_dir will be auto-generated as {output_dir}/checkpoints if not specified
+
+# Training limits (optional) - any limit triggers early stop
+# max_samples = 1000  # Maximum number of samples to train on
+# max_training_time = 3600  # Maximum training time in seconds

@@ -50,7 +50,7 @@ class BaseEnricher(ABC):
         dataset,
         verbose_every: Optional[int] = 100,
         **kwargs
-    ) -> list[dict]:
+    ):
         """
         Enrich entire dataset.
 
@@ -60,13 +60,16 @@ class BaseEnricher(ABC):
             **kwargs: Additional parameters passed to enrich_sample
 
         Returns:
-            List of enriched samples
+            Dataset of same type as input (or list if input was list)
         """
         # Handle both dataset objects and raw lists
-        if hasattr(dataset, '_data'):
+        is_dataset_object = hasattr(dataset, '_data')
+        if is_dataset_object:
             samples = dataset._data
+            dataset_class = type(dataset)
         elif isinstance(dataset, list):
             samples = dataset
+            dataset_class = None
         else:
             raise ValueError(f"Unsupported dataset type: {type(dataset)}")
 
@@ -88,7 +91,11 @@ class BaseEnricher(ABC):
             if self.verbose and verbose_every and (i + 1) % verbose_every == 0:
                 print(f"[{self.__class__.__name__}] Processed {i+1}/{len(output)} samples")
 
-        return output
+        # Return same type as input
+        if is_dataset_object:
+            return dataset_class(output)
+        else:
+            return output
 
     def __call__(self, dataset, **kwargs):
         """Allow enricher to be called as a function."""
