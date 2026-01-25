@@ -95,9 +95,4 @@ class MistralModel(ModelWrapper):
             padding_side="left",
         )
 
-        logger.debug(
-            f"Prepared Mistral inputs for {len(prompts)} prompts, "
-            f"shape: {inputs['input_ids'].shape}"
-        )
-
         return inputs.to(self.device)

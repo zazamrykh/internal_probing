@@ -43,8 +43,46 @@ Other .py files are implementation of base ModelWrapper class
 
 3) Dataset
 
-### Tests
---tb=long flag allows traceback all info
-Some tests related to models would require it. So ypu can place loaclly model to models directory otherwise it will be downloaded.
+Module for unified format of datasets. Base class is BaseDataset inside src/dataset/base. Data is storing like list of dicts with fields (optional) written in DatasetSample.
 
-You should run tests from tests subfolder.
+
+### Run experiments
+
+Many experiments can be run in several stages. Experiment includes stages:
+
+1. Model loading (required)
+  - Load base LLM for which correctness will be predicted
+  - Wrap it as ModelWrapper
+2. Dataset creation or loading. (required)
+  - you can directly specify path to enriched_dataset through config or apply enrichers to obtain features from dataset like semantic enropy, greedy answer or activations
+3. Method apply (with or without train)
+  - Methods could be: linear probe train, prompt embedding probe train
+  - For consistency I want to that stage be supportive for sampling based methods or log prob methods like direct semantic entropy calculation (no need train, just sampling) or log prob use for confidence calculation.
+4. Metrics calculation
+
+Main regimes of work:
+1) Just dataset enrichment.
+You can onse run 1-st and 2-nd stages to obtain enriched dataset (dataset for one particular model with greedy answer, semantic entropy sampled answers, se calculater, is_correct field) and then use it for different experiments using specified enriched path.
+
+2) Experiment with some method
+Imagine you developed yourth method for predicting correctness (e. g. PEP – prompt embedding probe method) and you want to understand it better. For example, you want to provide different experiments, like choice of batch size, defining required time (or samples_used) for convergence, or understand best layer and best position for predicting is_correct mark. Importang thing for that kind of experiments is returning important information and ability of providing custom flags and parameters for that method (experiment)
+
+3) Main regime
+The main point of that repository and experiment runner is
+- Provide dataset (e. g. TriviaQA)
+- Provide base model (e. g. Mistral 7b)
+- Provide method for prediction correctness (e. g. Probes)
+
+Method should return quality (auc metric) measured at test dataset.
+
+### Config
+
+Based on what do I want from experiment runner, I want config to have such sections:
+- [model] base llm model parameters
+- [dataset] dataset based parameters (name, n_samples, etc)
+  - [enricher] could just have enriched_path = <path> at that case just upload dataset from path
+  - or enricher section could be list of enricher staged. Based on them factory for enricher steps will be used to add to dataset required fields
+- [method] method for prediction of correctness
+Contains specific parameters for method. For example, for probes it can contains
+  - specific layer or position for probing. Or define_best = True and in such case linear probe will be constructed and trained for every position and layer and then best will be used for metric calculation.
+- [metrics] may be useless, but if needed there can be written parameters for metric calculation

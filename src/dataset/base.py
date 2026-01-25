@@ -307,3 +307,44 @@ class BaseDataset(ABC):
             self.__class__(data=val_data, name=f"{self.name}_val"),
             self.__class__(data=test_data, name=f"{self.name}_test")
         )
+
+    def cycle_to_size(self, target_size: int) -> "BaseDataset":
+        """
+        Create cyclic dataset by repeating samples to reach target size.
+
+        Useful for batch size tuning experiments where you need a specific
+        number of samples regardless of original dataset size.
+
+        Args:
+            target_size: Desired number of samples in output dataset
+
+        Returns:
+            New dataset instance with cycled samples
+
+        Example:
+            >>> dataset = TriviaQADataset(data=[...])  # 100 samples
+            >>> cycled = dataset.cycle_to_size(250)  # 250 samples (100 + 100 + 50)
+        """
+        if target_size <= 0:
+            raise ValueError(f"target_size must be positive, got {target_size}")
+
+        if len(self) == 0:
+            raise ValueError("Cannot cycle empty dataset")
+
+        # Calculate how many full cycles + remainder we need
+        n_full_cycles = target_size // len(self)
+        remainder = target_size % len(self)
+
+        # Build cycled data
+        cycled_data = []
+        for _ in range(n_full_cycles):
+            cycled_data.extend(self._data)
+
+        # Add remainder
+        if remainder > 0:
+            cycled_data.extend(self._data[:remainder])
+
+        return self.__class__(
+            data=cycled_data,
+            name=f"{self.name}_cycled_{target_size}"
+        )

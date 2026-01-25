@@ -74,6 +74,7 @@ class PEPTrainer(BaseProbeTrainer):
         max_training_time: Optional[float] = None,
         # Validation
         val_check_interval: int = 1,
+        val_samples = None
     ):
         """
         Initialize PEP trainer.
@@ -121,6 +122,16 @@ class PEPTrainer(BaseProbeTrainer):
         self.max_samples = max_samples
         self.max_training_time = max_training_time
         self.val_check_interval = val_check_interval
+        self.val_samples = val_samples
+
+        if logger.isEnabledFor(logging.DEBUG):
+            args = dict(locals())
+            args.pop("self", None)
+
+            args["model_wrapper"] = type(args["model_wrapper"]).__name__
+
+            logger.debug("PEPTrainer.__init__ args=%s", args)
+
 
         # Set random seeds
         torch.manual_seed(seed)
@@ -132,6 +143,7 @@ class PEPTrainer(BaseProbeTrainer):
         val_dataloader: DataLoader,
         target_field: str,
         weight_field: Optional[str] = None,
+        val_samples: int = None,
     ) -> dict[str, float]:
         """
         Evaluate model on validation set.
@@ -141,6 +153,7 @@ class PEPTrainer(BaseProbeTrainer):
             val_dataloader: Validation DataLoader
             target_field: Target field name
             weight_field: Optional sample weights field
+            val_samples: If not None, evaluate on at most this many *examples* (not batches)
 
         Returns:
             Dictionary with 'loss' and 'auc' metrics
@@ -149,10 +162,16 @@ class PEPTrainer(BaseProbeTrainer):
         all_preds = []
         all_targets = []
         total_loss = 0.0
+
         n_batches = 0
+        n_examples_seen = 0
 
         with torch.no_grad():
             for batch in val_dataloader:
+                # Stop early if we already evaluated enough examples
+                if val_samples is not None and n_examples_seen >= val_samples:
+                    break
+
                 if weight_field:
                     input_ids, attention_mask, targets, weights = batch
                     weights = weights.to(self.device)
@@ -164,19 +183,31 @@ class PEPTrainer(BaseProbeTrainer):
                 attention_mask = attention_mask.to(self.device)
                 targets = targets.to(self.device)
 
+                # If we want only val_samples examples, cut the last batch
+                if val_samples is not None:
+                    remaining = val_samples - n_examples_seen
+                    if remaining <= 0:
+                        break
+                    if targets.shape[0] > remaining:
+                        input_ids = input_ids[:remaining]
+                        attention_mask = attention_mask[:remaining]
+                        targets = targets[:remaining]
+                        if weights is not None:
+                            weights = weights[:remaining]
+
                 # Forward pass
                 logits, _ = model.forward(
                     input_ids,
                     attention_mask=attention_mask,
-                    return_activations=True
+                    return_activations=True,
                 )
                 logits = logits.squeeze(-1)
 
                 # Compute loss
                 if weights is not None:
-                    criterion = nn.BCEWithLogitsLoss(weight=weights, reduction='mean')
+                    criterion = nn.BCEWithLogitsLoss(weight=weights, reduction="mean")
                 else:
-                    criterion = nn.BCEWithLogitsLoss(reduction='mean')
+                    criterion = nn.BCEWithLogitsLoss(reduction="mean")
 
                 loss = criterion(logits, targets)
                 total_loss += loss.item()
@@ -184,21 +215,24 @@ class PEPTrainer(BaseProbeTrainer):
 
                 # Store predictions and targets for AUC
                 probs = torch.sigmoid(logits)
-                all_preds.extend(probs.cpu().numpy())
-                all_targets.extend(targets.cpu().numpy())
+                all_preds.extend(probs.detach().cpu().numpy().tolist())
+                all_targets.extend(targets.detach().cpu().numpy().tolist())
+
+                n_examples_seen += targets.shape[0]
 
         model.train()
 
-        # Compute metrics
-        avg_loss = total_loss / n_batches if n_batches > 0 else float('inf')
+        avg_loss = total_loss / n_batches if n_batches > 0 else float("inf")
 
         try:
             auc = roc_auc_score(all_targets, all_preds)
         except ValueError:
-            logger.warning('Cannot calculate roc auc during eval')
+            # e.g. only one class present in all_targets in this truncated subset
+            logger.warning("Cannot calculate roc auc during eval (not enough class variety)")
             auc = np.nan
 
-        return {'loss': avg_loss, 'auc': auc}
+        return {"loss": avg_loss, "auc": auc}
+
 
     def _save_checkpoint(
         self,
@@ -356,13 +390,16 @@ class PEPTrainer(BaseProbeTrainer):
     def fit(
         self,
         dataset: Union[BaseDataset, list[dict]],
-        position: int,
-        layer: int,
         target_field: str,
+        position: int = None,
+        layer: int = None,
         weight_field: Optional[str] = None,
         answer_field: str = 'greedy_answer',
         val_dataset: Optional[Union[BaseDataset, list[dict]]] = None,
+        return_history: bool = False,
         verbose: bool = True,
+        create_new_model = True,
+        model = None,
         **kwargs
     ) -> tuple[PEPModel, dict]:
         """
@@ -375,26 +412,38 @@ class PEPTrainer(BaseProbeTrainer):
             target_field: Target field name (also determines probe_type)
             weight_field: Optional sample weights field
             answer_field: Field name containing generated answers
-            val_dataset: Optional validation dataset for early stopping
+            val_dataset: Optional validation dataset for early stopping and history tracking
+            return_history: If True, include training history in training_info['history']
             verbose: Whether to print progress
+            create_new_model: Whether to create new model or fit given
+            model: in case of create_new_model = False here you can give model to train
             **kwargs: Additional arguments
 
         Returns:
             Tuple of (trained_model, training_info_dict)
+
             training_info_dict contains: best_iteration, best_metrics, stopped_early, etc.
+            If return_history=True, also includes 'history' key with list of validation checkpoints:
+                [{'iteration': int, 'n_samples_seen': int, 'elapsed_time': float,
+                  'val_auc': float, 'val_loss': float}, ...]
         """
         # Determine probe type from target field
         probe_type = "sep" if "se" in target_field else "accuracy"
 
-        # Create model
-        model = PEPModel(
-            model_wrapper=self.model_wrapper,
-            n_embeddings=self.n_embeddings,
-            probe_layer=layer,
-            probe_position=position,
-            probe_type=probe_type,
-            embedding_init_std=self.embedding_init_std,
-        )
+        if create_new_model:
+            assert layer is not None and position is not None, 'You have to specify layer and pos for create_new_model = True'
+            # Create model
+            model = PEPModel(
+                model_wrapper=self.model_wrapper,
+                n_embeddings=self.n_embeddings,
+                probe_layer=layer,
+                probe_position=position,
+                probe_type=probe_type,
+                embedding_init_std=self.embedding_init_std,
+            )
+        else:
+            assert model is not None, 'You should specify model in case of "create_new_model = False"'
+            
         model = model.to(self.device)
         model.train()
 
@@ -425,6 +474,9 @@ class PEPTrainer(BaseProbeTrainer):
         stopped_early = False
         total_samples_seen = 0
         start_time = time.time()
+
+        # History tracking
+        history = [] if return_history else None
 
         # Calculate max iterations
         samples_per_epoch = len(dataset)
@@ -514,10 +566,21 @@ class PEPTrainer(BaseProbeTrainer):
                 # Validation check
                 if val_dataloader and (global_iteration % self.val_check_interval == 0):
                     val_metrics = self._evaluate_on_validation(
-                        model, val_dataloader, target_field, weight_field
+                        model, val_dataloader, target_field, weight_field, val_samples = self.val_samples
                     )
 
                     current_metric = val_metrics[self.early_stopping_metric]
+
+                    # Record history if requested
+                    if return_history:
+                        history_entry = {
+                            'iteration': global_iteration,
+                            'n_samples_seen': total_samples_seen,
+                            'elapsed_time': time.time() - start_time,
+                            'val_auc': val_metrics['auc'],
+                            'val_loss': val_metrics['loss'],
+                        }
+                        history.append(history_entry)
 
                     if verbose:
                         logger.info(
@@ -584,14 +647,18 @@ class PEPTrainer(BaseProbeTrainer):
             'training_time': time.time() - start_time,
         }
 
+        # Add history if requested
+        if return_history and history:
+            training_info['history'] = history
+
         return model, training_info
 
     def predict(
         self,
         probe: PEPModel,
         dataset: Union[BaseDataset, list[dict]],
-        position: int,
-        layer: int,
+        position: int = None,
+        layer: int = None,
         add_to_dataset: bool = True,
         prediction_field: str = "probe_prediction",
         return_proba: bool = True
@@ -830,10 +897,12 @@ class PEPTrainer(BaseProbeTrainer):
         targets: list[str],
         k_folds: int = 5,
         weight_field: Optional[str] = None,
-        use_weights_for_targets: Optional[list[str]] = None,
+        use_weights_for_targets: Optional[str] = None,
         answer_field: str = 'greedy_answer',
         use_cv: bool = True,
+        use_val_for_early_stopping: bool = True,
         verbose: bool = True,
+        do_test_eval = True,
         **kwargs
     ) -> list[dict]:
         """
@@ -879,6 +948,9 @@ class PEPTrainer(BaseProbeTrainer):
                     use_weights = target in use_weights_for_targets
                     current_weight_field = weight_field if use_weights else None
 
+                    logger.debug(f"DEBUG: use_cv={use_cv}, use_val_for_early_stopping={use_val_for_early_stopping}")
+                    logger.debug(f"DEBUG: train_data size={len(train_data)}, val_data size={len(val_data)}")
+
                     if use_cv:
                         # Train with CV
                         model, metrics = self.train_cv(
@@ -890,24 +962,52 @@ class PEPTrainer(BaseProbeTrainer):
                             weight_field=current_weight_field,
                             answer_field=answer_field,
                             compute_metrics=True,
+                            use_val_for_early_stopping=use_val_for_early_stopping,
                             **kwargs
                         )
                     else:
-                        # Train without CV
-                        from src.training.utils import merge_datasets
-                        trainval = merge_datasets(train_data, val_data)
+                        # Train without CV - use train only, val for early stopping if requested
+                        if use_val_for_early_stopping:
+                            logger.debug(f"DEBUG: Training on train_data ({len(train_data)} samples) with val_data ({len(val_data)} samples) for early stopping")
+                            # Train on train_data, validate on val_data
+                            model, training_info = self.fit(
+                                train_data,
+                                position=position,
+                                layer=layer,
+                                target_field=target,
+                                weight_field=current_weight_field,
+                                answer_field=answer_field,
+                                val_dataset=val_data,
+                                verbose=verbose,
+                                **kwargs
+                            )
+                        else:
+                            # Train on merged train+val
+                            from src.training.utils import merge_datasets
+                            trainval = merge_datasets(train_data, val_data)
+                            logger.debug(f"DEBUG: Training on merged trainval ({len(trainval)} samples)")
 
-                        model, training_info = self.fit(
-                            trainval,
-                            position=position,
-                            layer=layer,
-                            target_field=target,
-                            weight_field=current_weight_field,
-                            answer_field=answer_field,
-                            val_dataset=None,
-                            verbose=verbose,
-                            **kwargs
-                        )
+                            model, training_info = self.fit(
+                                trainval,
+                                position=position,
+                                layer=layer,
+                                target_field=target,
+                                weight_field=current_weight_field,
+                                answer_field=answer_field,
+                                val_dataset=None,
+                                verbose=verbose,
+                                **kwargs
+                            )
+
+                        metrics = {
+                            'position': position,
+                            'layer': layer,
+                            'target': target,
+                            **training_info,  # Add training info
+                        }
+
+                        if not do_test_eval:
+                            continue
 
                         # Compute test metrics
                         test_preds = self.predict(
@@ -928,16 +1028,7 @@ class PEPTrainer(BaseProbeTrainer):
                         except ValueError:
                             test_logloss = np.nan
 
-                        metrics = {
-                            'position': position,
-                            'layer': layer,
-                            'target': target,
-                            'test_auc': test_auc,
-                            'test_logloss': test_logloss,
-                            'n_trainval': len(trainval),
-                            'n_test': len(test_data),
-                            **training_info,  # Add training info
-                        }
+                        metrics = metrics | {'test_auc': test_auc, 'test_logloss': test_logloss}
 
                     results.append({
                         'probe': model,

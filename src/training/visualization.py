@@ -8,7 +8,9 @@ Provides plotting functions for:
 
 import pandas as pd
 import matplotlib.pyplot as plt
-from typing import Union
+from typing import Union, Sequence, Mapping, Any, Optional
+
+import math
 
 
 def plot_auc_by_layer(
@@ -133,3 +135,60 @@ def plot_sep_vs_accuracy_auc(
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+
+def plot_history_grid(
+    history: Sequence[Mapping[str, Any]],
+    x_list: Sequence[str],
+    y_list: Sequence[str],
+    *,
+    ncols: int = 3,
+    figsize_per_ax: tuple[float, float] = (5.5, 3.6),
+    marker: str = "o",
+    linewidth: float = 1.5,
+    sharey: bool = False,
+    suptitle: Optional[str] = None,
+):
+    if not history:
+        raise ValueError("history is empty")
+
+    pairs = [(x, y) for y in y_list for x in x_list]
+    n_plots = len(pairs)
+
+    ncols = min(ncols, n_plots)
+    nrows = math.ceil(n_plots / ncols)
+
+    figsize = (figsize_per_ax[0] * ncols, figsize_per_ax[1] * nrows)
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, squeeze=False, sharey=sharey)
+    axes_flat = axes.ravel()
+
+    for i, (x_key, y_key) in enumerate(pairs):
+        ax = axes_flat[i]
+
+        xs = [row.get(x_key) for row in history]
+        ys = [row.get(y_key) for row in history]
+
+        # drop None pairs
+        xy = [(x, y) for x, y in zip(xs, ys) if x is not None and y is not None]
+        if not xy:
+            ax.set_title(f"{y_key} vs {x_key} (no data)")
+            ax.axis("off")
+            continue
+
+        xs, ys = zip(*xy)
+
+        ax.plot(xs, ys, marker=marker, linewidth=linewidth)
+        ax.set_xlabel(x_key)
+        ax.set_ylabel(y_key)
+        ax.set_title(f"{y_key} от {x_key}")
+        ax.grid(True, alpha=0.3)
+
+    # hide unused axes
+    for j in range(n_plots, len(axes_flat)):
+        axes_flat[j].axis("off")
+
+    if suptitle:
+        fig.suptitle(suptitle)
+
+    fig.tight_layout()
+    return fig, axes

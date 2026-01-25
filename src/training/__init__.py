@@ -19,7 +19,8 @@ from src.training.utils import (
 )
 from src.training.visualization import (
     plot_auc_by_layer,
-    plot_sep_vs_accuracy_auc
+    plot_sep_vs_accuracy_auc,
+    plot_history_grid
 )
 from src.training.io import (
     save_probe,
@@ -47,4 +48,5 @@ __all__ = [
     'load_probe',
     'find_best_probe',
     'save_all_probes',
+    'plot_history_grid'
 ]

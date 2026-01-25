@@ -86,6 +86,7 @@ class PEPModel(nn.Module, ScorerInterface):
         probe_type: str = "accuracy",
         embedding_init_std: float = 0.02,
         param_dtype: torch.dtype = torch.float32,
+        device: str = 'cuda'
     ):
         """
         Initialize PEPModel.
@@ -99,6 +100,7 @@ class PEPModel(nn.Module, ScorerInterface):
             probe_type: Type of probe - 'accuracy' (predicts P(correct)) or 'sep' (predicts P(high_SE))
             embedding_init_std: Standard deviation for embedding initialization
             param_dtype: Dtype for trainable parameters (torch.float32 or torch.float16)
+            device: where to initialize trainable weights
         """
         super().__init__()
 
@@ -114,11 +116,11 @@ class PEPModel(nn.Module, ScorerInterface):
 
         # Initialize learnable prompt embeddings in specified dtype
         self.prompt_embeddings = nn.Parameter(
-            torch.randn(n_embeddings, self.hidden_dim, dtype=param_dtype) * embedding_init_std
+            torch.randn(n_embeddings, self.hidden_dim, dtype=param_dtype, device=device) * embedding_init_std
         )
 
         # Initialize linear probe in specified dtype
-        self.probe = nn.Linear(self.hidden_dim, 1, dtype=param_dtype)
+        self.probe = nn.Linear(self.hidden_dim, 1, dtype=param_dtype, device=device)
 
         # Freeze base model parameters
         for param in self.model_wrapper.model.parameters():

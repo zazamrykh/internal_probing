@@ -1,0 +1,43 @@
+# Convergence Analysis Configuration
+# Analyzes PEP model convergence by tracking validation metrics during training
+# Uses pre-enriched datasets from previous experiments
+
+[experiment]
+name = "convergence_analysis_triviaqa_mistral"
+output_dir = "exp_results/convergence_analysis/triviaqa_mistral"
+seed = 42
+
+[model]
+model_type = "mistral-7b-instruct"
+model_name_or_path = "mistralai/Mistral-7B-Instruct-v0.1"
+device_map = "auto"
+quantization = "8bit"
+
+[dataset]
+# Load pre-enriched datasets
+enriched_path = "exp_results/enrich_triviaqa/enriched_datasets"
+
+[probe]
+probe_type = "pep"
+
+[probe.pep_params]
+n_embeddings = 1
+param_dtype = "float32"
+
+# Training configuration
+learning_rate = 1e-3
+batch_size = 32
+
+
+[training]
+# Combinations to train
+positions = [-2]
+layers = [16]  # Focus on middle layer for convergence analysis
+targets = ["is_correct"]
+do_test_eval = false
+use_val_for_early_stopping = true
+
+[training.pep_params]
+max_samples = 350
+return_history = true
+val_check_interval = 50

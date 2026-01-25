@@ -201,6 +201,25 @@ class ExperimentRunner:
         logger.info(f"Created datasets: train={len(self.train_data)}, "
                    f"val={len(self.val_data)}, test={len(self.test_data)}")
 
+        # Apply dataset cycling if requested (useful for batch size tuning)
+        if 'cycle_train_to_size' in dataset_config:
+            target_size = dataset_config['cycle_train_to_size']
+            logger.info(f"Cycling train dataset to {target_size} samples")
+            self.train_data = self.train_data.cycle_to_size(target_size)
+            logger.info(f"Train dataset cycled: {len(self.train_data)} samples")
+
+        if 'cycle_val_to_size' in dataset_config:
+            target_size = dataset_config['cycle_val_to_size']
+            logger.info(f"Cycling val dataset to {target_size} samples")
+            self.val_data = self.val_data.cycle_to_size(target_size)
+            logger.info(f"Val dataset cycled: {len(self.val_data)} samples")
+
+        if 'cycle_test_to_size' in dataset_config:
+            target_size = dataset_config['cycle_test_to_size']
+            logger.info(f"Cycling test dataset to {target_size} samples")
+            self.test_data = self.test_data.cycle_to_size(target_size)
+            logger.info(f"Test dataset cycled: {len(self.test_data)} samples")
+
     def _load_enriched_datasets(self):
         """Load pre-enriched datasets from files."""
         enriched_path = Path(self.config.dataset['enriched_path'])
@@ -210,6 +229,29 @@ class ExperimentRunner:
         self.test_data = BaseDataset.load(enriched_path / 'test.pkl')
 
         logger.info(f"Loaded enriched datasets from {enriched_path}")
+        logger.info(f"Loaded datasets: train={len(self.train_data)}, "
+                   f"val={len(self.val_data)}, test={len(self.test_data)}")
+
+        # Apply dataset cycling if requested (useful for batch size tuning)
+        dataset_config = self.config.dataset
+
+        if 'cycle_train_to_size' in dataset_config:
+            target_size = dataset_config['cycle_train_to_size']
+            logger.info(f"Cycling train dataset to {target_size} samples")
+            self.train_data = self.train_data.cycle_to_size(target_size)
+            logger.info(f"Train dataset cycled: {len(self.train_data)} samples")
+
+        if 'cycle_val_to_size' in dataset_config:
+            target_size = dataset_config['cycle_val_to_size']
+            logger.info(f"Cycling val dataset to {target_size} samples")
+            self.val_data = self.val_data.cycle_to_size(target_size)
+            logger.info(f"Val dataset cycled: {len(self.val_data)} samples")
+
+        if 'cycle_test_to_size' in dataset_config:
+            target_size = dataset_config['cycle_test_to_size']
+            logger.info(f"Cycling test dataset to {target_size} samples")
+            self.test_data = self.test_data.cycle_to_size(target_size)
+            logger.info(f"Test dataset cycled: {len(self.test_data)} samples")
 
     def _load_model(self):
         """Load model and create wrapper."""
@@ -407,11 +449,18 @@ class ExperimentRunner:
         k_folds = training_config.get('k_folds', 5, warn_on_fallback=True)
         use_cv = training_config.get('use_cv', False, warn_on_fallback=True)
 
-        # Determine if we should use validation for early stopping
-        use_val_for_early_stopping = (
-            pep_params.get('early_stopping_patience') is not None
-            or pep_params.get('save_best_model', False)
-        )
+        # Check if we should use validation for early stopping
+        # Read from training config, or auto-detect if early stopping/best model is enabled
+        use_val_for_early_stopping = training_config.get('use_val_for_early_stopping')
+        if use_val_for_early_stopping is None:
+            # Auto-detect: use val if early stopping or save_best_model is enabled
+            use_val_for_early_stopping = (
+                pep_params.get('early_stopping_patience') is not None
+                or pep_params.get('save_best_model', False)
+            )
+
+        # Check if return_history is requested
+        return_history = pep_params.get('return_history', False)
 
         results = trainer.train_every_combination(
             self.train_data,
@@ -425,7 +474,9 @@ class ExperimentRunner:
             use_weights_for_targets=training_config.get('use_weights_for_targets', []),
             use_cv=use_cv,
             use_val_for_early_stopping=use_val_for_early_stopping,
-            verbose=True
+            return_history=return_history,
+            verbose=True,
+            do_test_eval=self.config.training.get('do_test_eval', True)
         )
 
         logger.info(f"Trained {len(results)} PEP probes")

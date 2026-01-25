@@ -1,0 +1,43 @@
+# Base configuration for batch size tuning experiments
+# This config will be modified by tune_batch_size.py script
+#
+# IMPORTANT: This config expects pre-enriched datasets
+# You must specify enriched_path pointing to directory with train.pkl, val.pkl, test.pkl
+
+[experiment]
+name = "batch_size_tuning"
+seed = 42
+
+[model]
+model_type = "mistral-7b-instruct"
+model_name_or_path = "mistralai/Mistral-7B-Instruct-v0.1"
+device_map = "auto"
+quantization = "8bit"
+
+[dataset]
+# Path to pre-enriched datasets (must contain train.pkl, val.pkl, test.pkl)
+enriched_path = "exp_results/enrich_triviaqa/enriched_datasets"
+
+[probe]
+probe_type = "pep"
+
+[training]
+positions = [-2]
+layers = [8]
+targets = ["is_correct"]
+use_cv = false  # Disabled for speed during tuning
+use_val_for_early_stopping = true  # Use val for early stopping to avoid merging datasets
+do_test_eval = false
+
+[training.pep_params]
+n_embeddings = 1
+n_epochs = 1
+learning_rate = 1e-3
+optimizer = "adamw"
+weight_decay = 0.0
+
+# Disable early stopping and checkpointing for speed
+# early_stopping_patience = null  # Commented out - not supported in TOML
+save_best_model = false
+val_check_interval = 100000
+
