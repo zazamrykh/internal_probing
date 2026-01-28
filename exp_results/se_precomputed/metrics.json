@@ -1,0 +1,13 @@
+{
+  "auc": 0.7329735787460563,
+  "accuracy": 0.661,
+  "phase_times": {
+    "model_loading": 11.351400375366211,
+    "dataset_loading": 3.986391067504883,
+    "method_apply": 7.891654968261719e-05
+  },
+  "total_time": 15.337870359420776,
+  "method_type": "semantic_entropy",
+  "target": "is_correct",
+  "n_test_samples": 1000
+}

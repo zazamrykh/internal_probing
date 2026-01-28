@@ -90,39 +90,6 @@ class BaseProbeTrainer(ABC):
         """
         pass
 
-    @abstractmethod
-    def train_cv(
-        self,
-        train_data: Union[BaseDataset, list[dict]],
-        val_data: Union[BaseDataset, list[dict]],
-        test_data: Union[BaseDataset, list[dict]],
-        position: int,
-        layer: int,
-        target_field: str,
-        k_folds: int = 5,
-        weight_field: Optional[str] = None,
-        compute_metrics: bool = True,
-        **kwargs
-    ) -> tuple[Any, dict]:
-        """
-        Train probe with cross-validation.
-
-        Args:
-            train_data: Training dataset
-            val_data: Validation dataset
-            test_data: Test dataset
-            position: Token position
-            layer: Layer index
-            target_field: Target field name
-            k_folds: Number of CV folds
-            weight_field: Optional sample weights
-            compute_metrics: Whether to compute evaluation metrics
-            **kwargs: Additional training arguments
-
-        Returns:
-            Tuple of (trained_probe, metrics_dict)
-        """
-        pass
 
     def train_every_combination(
         self,

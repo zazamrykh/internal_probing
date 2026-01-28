@@ -6,7 +6,7 @@ using dataclass-based inputs for type safety and clarity.
 """
 
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Dict, Any, Optional
 import numpy as np
 
 from src.scoring.inputs import ScorerInput
@@ -14,9 +14,9 @@ from src.scoring.inputs import ScorerInput
 
 class ScorerInterface(ABC):
     """
-    Abstract base class for uncertainty estimation methods.
+    Abstract base class for uncertainty estimation scorers.
 
-    All uncertainty estimation methods (sampling-based, probe-based, reward-model-based)
+    All uncertainty estimation scorers (sampling-based, probe-based, reward-model-based)
     inherit from this class and implement the estimate() method.
 
     """
@@ -37,4 +37,10 @@ class ScorerInterface(ABC):
 
             Higher scores typically indicate higher uncertainty/lower confidence.
         """
+        pass
+
+
+    @abstractmethod
+    def get_input(self, sample: dict) -> ScorerInput:
+        """ Get input for estimate method based on dataset sample """
         pass

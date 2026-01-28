@@ -1,0 +1,38 @@
+# [debugged] Linear probe to predict correctness
+# This config uses SE values computed during enrichment phase
+
+[experiment]
+name = "probe_triviaqa"
+output_dir = "exp_results/probe_triviaqa"
+seed = 42
+
+[dataset]
+# Already enriched by configs/data/enrich_triviaqa.toml
+enriched_path = "exp_results/enrich_triviaqa/enriched_datasets"
+n_train = 3500
+n_val = 500
+n_test = 1000
+
+[model]
+skip = true
+
+[enrichment]
+skip = true
+
+[method]
+type = "linear_probe"
+output_dir = "exp_results/probe_triviaqa"
+"clear_checkpoints" = false
+targets = ["is_correct", "se_binary"]
+# if use enriched dataset need to be corresponding
+layers = [0, 4, 8, 12, 16, 20, 24, 28, 31]
+positions = [0, -2]
+weight_field = "se_weight"
+use_weights_for_targets = ["se_binary"]
+probe_class = "LogisticRegression"
+selection_metric = "val_auc"
+
+
+[metrics]
+compute_auc = true
+compute_accuracy = true

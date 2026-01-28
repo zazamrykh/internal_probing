@@ -503,6 +503,21 @@ class PEPModel(nn.Module, ScorerInterface):
 
             return full_answer, score
 
+    def get_input(self, sample: dict) -> ScorerInput:
+        """
+        Create scorer input from dataset sample (ScorerInterface implementation).
+
+        Args:
+            sample: Dataset sample with 'prompt' and 'greedy_answer' fields
+
+        Returns:
+            PromptEmbeddingInput with prompt and answer
+        """
+        return PromptEmbeddingInput(
+            prompt=sample['prompt'],
+            answer=sample.get('greedy_answer')
+        )
+
     def estimate(self, input: ScorerInput) -> float:
         """
         Estimate uncertainty score (ScorerInterface implementation).

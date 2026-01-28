@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import logging
 
-from src.config.enums import ProbeType, TargetType, DatasetType, ModelType
+from src.config.enums import ProbeType, MethodType, TargetType, DatasetType, ModelType
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +68,15 @@ class ExperimentConfig:
         self._config = config_dict
 
         # Store main sections as ConfigDict for warn_on_fallback support
+        # New structure (5 sections matching 5 phases):
         self.experiment = ConfigDict(config_dict.get('experiment', {}))
         self.model = ConfigDict(config_dict.get('model', {}))
         self.dataset = ConfigDict(config_dict.get('dataset', {}))
+        self.enricher = ConfigDict(config_dict.get('enricher', {}))
+        self.method = ConfigDict(config_dict.get('method', {}))
+        self.metrics = ConfigDict(config_dict.get('metrics', {}))
+
+        # Legacy support - map old sections to new structure
         self.probe = ConfigDict(config_dict.get('probe', {}))
         self.training = ConfigDict(config_dict.get('training', {}))
         self.enrichment = ConfigDict(config_dict.get('enrichment', {}))
@@ -84,7 +90,40 @@ class ExperimentConfig:
         if 'name' not in self.experiment:
             raise ValueError("experiment.name is required")
 
-        # Validate enum fields if present
+        # Validate method.type if present (new structure)
+        if 'type' in self.method:
+            try:
+                MethodType(self.method['type'])
+            except ValueError:
+                valid = [e.value for e in MethodType]
+                raise ValueError(
+                    f"Invalid method.type: {self.method['type']}. "
+                    f"Must be one of {valid}"
+                )
+
+        # Validate dataset.type if present (new structure)
+        if 'type' in self.dataset:
+            try:
+                DatasetType(self.dataset['type'])
+            except ValueError:
+                valid = [e.value for e in DatasetType]
+                raise ValueError(
+                    f"Invalid dataset.type: {self.dataset['type']}. "
+                    f"Must be one of {valid}"
+                )
+
+        # Validate model.type if present (new structure)
+        if 'type' in self.model:
+            try:
+                ModelType(self.model['type'])
+            except ValueError:
+                valid = [e.value for e in ModelType]
+                raise ValueError(
+                    f"Invalid model.type: {self.model['type']}. "
+                    f"Must be one of {valid}"
+                )
+
+        # Legacy validation for backward compatibility
         if 'probe_type' in self.probe:
             try:
                 ProbeType(self.probe['probe_type'])

@@ -69,7 +69,7 @@ class LinearProbeScorer(ScorerInterface):
         >>> error_scores = scorer.estimate(input_data)
     """
 
-    def __init__(self, probe_model, probe_type: str = "sep"):
+    def __init__(self, probe_model, probe_type: str = "sep", layer=None, pos=None):
         """
         Initialize linear probe scorer.
 
@@ -85,7 +85,8 @@ class LinearProbeScorer(ScorerInterface):
             ValueError: If probe_model lacks predict_proba() or probe_type is invalid
         """
         self.probe_model = probe_model
-
+        self.layer = layer
+        self.pos = pos
         # Validate probe_type
         valid_types = {"sep", "accuracy"}
         if probe_type not in valid_types:
@@ -154,3 +155,42 @@ class LinearProbeScorer(ScorerInterface):
             # Accuracy probe: class=1 means correct
             # Invert to get P(incorrect): higher = more errors
             return 1.0 - probs
+
+
+    def get_input(self, sample):
+        layer = getattr(self, 'layer', None)
+        position = getattr(self, 'position', None)
+
+        if layer is None or position is None:
+            raise ValueError(
+                "LinearProbeScorer must have 'layer' and 'position' attributes set"
+            )
+
+        # Extract activations from sample
+        if 'activations' not in sample:
+            raise KeyError(
+                f"Sample does not contain 'activations'. "
+                f"Make sure ActivationEnricher was applied."
+            )
+
+        acts = sample['activations']['acts']
+        if position not in acts:
+            raise KeyError(
+                f"Position {position} not found in activations. "
+                f"Available positions: {list(acts.keys())}"
+            )
+        if layer not in acts[position]:
+            raise KeyError(
+                f"Layer {layer} not found in activations for position {position}. "
+                f"Available layers: {list(acts[position].keys())}"
+            )
+
+        activation = acts[position][layer]
+
+        # Convert to tensor if needed
+        if isinstance(activation, np.ndarray):
+            activation = torch.from_numpy(activation)
+        elif not isinstance(activation, torch.Tensor):
+            activation = torch.tensor(activation)
+
+        return ProbeInput(activations=activation)

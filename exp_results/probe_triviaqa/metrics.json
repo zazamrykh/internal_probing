@@ -1,0 +1,12 @@
+{
+  "auc": 0.7172190889194776,
+  "accuracy": 0.665,
+  "phase_times": {
+    "dataset_loading": 3.8387644290924072,
+    "method_apply": 307.2747175693512
+  },
+  "total_time": 311.1134819984436,
+  "method_type": "linear_probe",
+  "target": "is_correct",
+  "n_test_samples": 1000
+}

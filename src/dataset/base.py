@@ -247,6 +247,51 @@ class BaseDataset(ABC):
             # Old format: use cls (may fail for BaseDataset)
             return cls(data=loaded if isinstance(loaded, list) else path, **kwargs)
 
+    @classmethod
+    def from_source(
+        cls,
+        dataset_type: str,
+        split: str = "validation",
+        n_samples: int = 100,
+        seed: int = 42,
+        **kwargs
+    ) -> "BaseDataset":
+        """
+        Factory method to create dataset from source by type.
+
+        Args:
+            dataset_type: Dataset type (e.g., "triviaqa")
+            split: Dataset split to load
+            n_samples: Number of samples to load
+            seed: Random seed for sampling
+            **kwargs: Additional dataset-specific arguments
+
+        Returns:
+            Dataset instance of appropriate type
+
+        Example:
+            >>> dataset = BaseDataset.from_source(
+            ...     "triviaqa",
+            ...     split="validation",
+            ...     n_samples=100
+            ... )
+        """
+        # Import here to avoid circular imports
+        from src.dataset.implementations import TriviaQADataset
+
+        if dataset_type == 'triviaqa':
+            return TriviaQADataset.from_huggingface(
+                split=split,
+                n_samples=n_samples,
+                seed=seed,
+                shuffle_buffer=kwargs.get('shuffle_buffer', 10000)
+            )
+        else:
+            raise ValueError(
+                f"Unknown dataset type: '{dataset_type}'. "
+                f"Supported: triviaqa"
+            )
+
     def get_subset(self, indices: list[int]) -> "BaseDataset":
         """
         Create subset of dataset with specified indices.

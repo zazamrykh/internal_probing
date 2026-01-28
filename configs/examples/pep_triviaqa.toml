@@ -1,0 +1,57 @@
+# [debugged] PEP (Prompt Embedding Probes) to predict correctness
+# This config uses enriched dataset with greedy answers
+
+[experiment]
+name = "pep_triviaqa"
+output_dir = "exp_results/pep_triviaqa"
+seed = 42
+
+[dataset]
+# Already enriched by configs/data/enrich_triviaqa.toml
+enriched_path = "exp_results/enrich_triviaqa/enriched_datasets"
+n_train = 3500
+n_val = 500
+n_test = 1000
+
+[model]
+model_type = "mistral-7b-instruct"
+model_name_or_path = "mistralai/Mistral-7B-Instruct-v0.1"
+quantization = "8bit"
+device_map = "auto"
+
+[enrichment]
+skip = true
+
+[method]
+type = "pep"
+output_dir = "exp_results/pep_triviaqa"
+save_all_models = false
+clear_checkpoints = false
+return_history = true
+targets = ["is_correct"]
+# if use enriched dataset need to be corresponding
+layers = [0, 8, 16, 24, 31]
+positions = [0, -2]
+selection_metric = "best_metric"
+
+# PEP training parameters
+n_embeddings = 1
+learning_rate = 0.001
+batch_size = 32
+weight_decay = 0.0
+optimizer_type = "adamw"
+embedding_init_std = 0.02
+
+# Early stopping
+early_stopping_patience = 10
+early_stopping_metric = "auc"
+save_best_model = true
+val_check_interval = 100
+
+max_samples = 50000
+max_training_time = 3600
+val_samples = 500
+
+[metrics]
+compute_auc = true
+compute_accuracy = true

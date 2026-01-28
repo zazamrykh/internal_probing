@@ -40,6 +40,41 @@ class CorrectnessEvaluator(ABC):
         """
         pass
 
+    @classmethod
+    def create(cls, evaluator_type: str = "substring_match", **kwargs) -> 'CorrectnessEvaluator':
+        """
+        Factory method to create evaluator by type.
+
+        Args:
+            evaluator_type: Type of evaluator ("substring_match", "exact_match", "custom")
+            **kwargs: Additional arguments for evaluator constructor
+
+        Returns:
+            CorrectnessEvaluator instance
+
+        Example:
+            >>> evaluator = CorrectnessEvaluator.create("substring_match")
+            >>> evaluator = CorrectnessEvaluator.create("exact_match", case_sensitive=True)
+        """
+        if evaluator_type == "substring_match":
+            return SubstringMatchEvaluator(
+                case_sensitive=kwargs.get('case_sensitive', False)
+            )
+        elif evaluator_type == "exact_match":
+            return ExactMatchEvaluator(
+                case_sensitive=kwargs.get('case_sensitive', False),
+                normalize=kwargs.get('normalize', True)
+            )
+        elif evaluator_type == "custom":
+            if 'eval_fn' not in kwargs:
+                raise ValueError("custom evaluator requires 'eval_fn' argument")
+            return CustomEvaluator(kwargs['eval_fn'])
+        else:
+            raise ValueError(
+                f"Unknown evaluator type: '{evaluator_type}'. "
+                f"Supported: substring_match, exact_match, custom"
+            )
+
 
 class SubstringMatchEvaluator(CorrectnessEvaluator):
     """
@@ -162,7 +197,7 @@ class ExactMatchEvaluator(CorrectnessEvaluator):
         aliases = [self._normalize_text(a) for a in gt_answers]
 
         return 1.0 if pred in aliases else 0.0
-    
+
 
 class CustomEvaluator(CorrectnessEvaluator):
     """
@@ -206,3 +241,13 @@ class CustomEvaluator(CorrectnessEvaluator):
             Correctness score from custom function
         """
         return self.eval_fn(prompt, generated_answer, gt_answers)
+
+
+# Backward compatibility: keep function wrapper
+def create_evaluator(evaluator_type: str = "substring_match", **kwargs) -> CorrectnessEvaluator:
+    """
+    Factory function to create evaluator by type (backward compatibility wrapper).
+
+    Prefer using CorrectnessEvaluator.create() instead.
+    """
+    return CorrectnessEvaluator.create(evaluator_type, **kwargs)

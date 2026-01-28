@@ -8,9 +8,16 @@ from enum import Enum
 
 
 class ProbeType(str, Enum):
-    """Types of probing methods."""
+    """Types of probing methods (deprecated - use MethodType instead)."""
     LINEAR = "linear"
     PROMPT_EMBEDDING = "pep"
+
+
+class MethodType(str, Enum):
+    """Types of uncertainty estimation methods."""
+    LINEAR_PROBE = "linear_probe"
+    PEP = "pep"
+    SEMANTIC_ENTROPY = "semantic_entropy"
 
 
 class TargetType(str, Enum):

@@ -6,6 +6,7 @@ Provides flexible TOML-based configuration with minimal validation.
 
 from src.config.enums import (
     ProbeType,
+    MethodType,
     TargetType,
     DatasetType,
     ModelType,
@@ -16,6 +17,7 @@ from src.config.loader import ExperimentConfig, ConfigDict
 
 __all__ = [
     'ProbeType',
+    'MethodType',
     'TargetType',
     'DatasetType',
     'ModelType',

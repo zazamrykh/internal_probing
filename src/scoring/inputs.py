@@ -19,7 +19,6 @@ class ScorerInput:
 
     All specific input types inherit from this base class.
     """
-    pass
 
 
 @dataclass
@@ -51,6 +50,20 @@ class PromptEmbeddingInput(ScorerInput):
     """
     prompt: str
     answer: Optional[str] = None
+
+
+@dataclass
+class SampleInput(ScorerInput):
+    """
+    Input for scorers that extract precomputed values from dataset samples.
+
+    Used by PrecomputedScorer to extract uncertainty scores that were
+    computed during the enrichment phase (e.g., semantic entropy).
+
+    Attributes:
+        sample: Dictionary containing the dataset sample with precomputed fields
+    """
+    sample: dict
 
 
 @dataclass

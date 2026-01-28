@@ -86,3 +86,13 @@ Based on what do I want from experiment runner, I want config to have such secti
 Contains specific parameters for method. For example, for probes it can contains
   - specific layer or position for probing. Or define_best = True and in such case linear probe will be constructed and trained for every position and layer and then best will be used for metric calculation.
 - [metrics] may be useless, but if needed there can be written parameters for metric calculation
+
+
+License: MIT
+
+## Third-party code
+
+This repository includes third-party code in `external/`:
+
+- OATML/semantic-entropy-probes (MIT License)
+- lorenzkuhn/semantic_uncertainty (MIT License)

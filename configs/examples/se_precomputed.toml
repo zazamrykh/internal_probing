@@ -1,0 +1,38 @@
+# [debugged] Semantic Entropy Method - Using Precomputed Values
+t# This config uses SE values computed during enrichment phase
+
+[experiment]
+name = "semantic_entropy_precomputed"
+output_dir = "exp_results/se_precomputed"
+seed = 42
+
+[dataset]
+# Use pre-enriched datasets with SE already computed
+enriched_path = "exp_results/enrich_triviaqa/enriched_datasets"
+n_train = 3500
+n_val = 500
+n_test = 1000
+
+[model]
+# Model is still needed for potential future use, but not for precomputed SE
+model_type = "mistral-7b-instruct"
+model_name_or_path = "mistralai/Mistral-7B-Instruct-v0.1"
+quantization = "8bit"
+device_map = "auto"
+
+[enrichment]
+# Skip enrichment - we're using pre-enriched data
+skip = true
+
+[method]
+type = "semantic_entropy"
+# Use precomputed SE values from enrichment phase
+use_precomputed = true
+# Field name containing the SE value in dataset samples
+field_name = "se_raw"
+# Target field for computing metrics (compare SE against correctness)
+target = "is_correct"
+
+[metrics]
+compute_auc = true
+compute_accuracy = true

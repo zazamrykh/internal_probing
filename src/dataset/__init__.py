@@ -10,6 +10,8 @@ from src.dataset.evaluators import (
     CorrectnessEvaluator,
     SubstringMatchEvaluator,
     ExactMatchEvaluator,
+    CustomEvaluator,
+    create_evaluator,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "CorrectnessEvaluator",
     "SubstringMatchEvaluator",
     "ExactMatchEvaluator",
+    "CustomEvaluator",
+    "create_evaluator",
 ]

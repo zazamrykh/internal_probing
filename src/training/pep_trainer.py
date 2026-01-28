@@ -233,7 +233,6 @@ class PEPTrainer(BaseProbeTrainer):
 
         return {"loss": avg_loss, "auc": auc}
 
-
     def _save_checkpoint(
         self,
         model: PEPModel,
@@ -318,6 +317,7 @@ class PEPTrainer(BaseProbeTrainer):
         Returns:
             DataLoader with batches of (input_ids, targets, weights)
         """
+        logger.debug("Praparing dataset")
         processed_sequences = []
         targets = []
         weights = [] if weight_field else None
@@ -443,7 +443,7 @@ class PEPTrainer(BaseProbeTrainer):
             )
         else:
             assert model is not None, 'You should specify model in case of "create_new_model = False"'
-            
+
         model = model.to(self.device)
         model.train()
 
@@ -708,185 +708,6 @@ class PEPTrainer(BaseProbeTrainer):
         else:
             return predictions
 
-    def train_cv(
-        self,
-        train_data: Union[BaseDataset, list[dict]],
-        val_data: Union[BaseDataset, list[dict]],
-        test_data: Union[BaseDataset, list[dict]],
-        position: int,
-        layer: int,
-        target_field: str,
-        k_folds: int = 5,
-        weight_field: Optional[str] = None,
-        compute_metrics: bool = True,
-        answer_field: str = 'greedy_answer',
-        use_val_for_early_stopping: bool = False,
-        **kwargs
-    ) -> tuple[PEPModel, dict]:
-        """
-        Train PEPModel with K-fold cross-validation or simple train/val split.
-
-        Two modes:
-        1. use_val_for_early_stopping=False (default): True K-fold CV
-           - Merges train+val into trainval
-           - Performs K-fold CV on trainval to estimate generalization
-           - Trains final model on full trainval
-           - Evaluates on test
-
-        2. use_val_for_early_stopping=True: Train/val split with early stopping
-           - Trains on train_data
-           - Validates on val_data for early stopping
-           - No K-fold CV performed
-           - Evaluates on test
-
-        Args:
-            train_data: Training dataset
-            val_data: Validation dataset
-            test_data: Test dataset
-            position: Token position
-            layer: Layer index
-            target_field: Target field name
-            k_folds: Number of CV folds (only used if use_val_for_early_stopping=False)
-            weight_field: Optional sample weights
-            compute_metrics: Whether to compute metrics
-            answer_field: Field containing generated answers
-            use_val_for_early_stopping: If True, use val_data for early stopping instead of CV
-            **kwargs: Additional arguments (e.g., early_stopping_patience)
-
-        Returns:
-            Tuple of (trained_model, metrics_dict)
-            metrics_dict contains:
-                - cv_auc_mean, cv_auc_std (if CV performed)
-                - test_auc, test_logloss
-                - training_info from fit()
-        """
-        if use_val_for_early_stopping:
-            # Mode 2: Train/val split with early stopping
-            logger.info(f"Training PEPModel on {len(train_data)} samples with validation on {len(val_data)}")
-            final_model, training_info = self.fit(
-                train_data,
-                position=position,
-                layer=layer,
-                target_field=target_field,
-                weight_field=weight_field,
-                answer_field=answer_field,
-                val_dataset=val_data,
-                verbose=True,
-                **kwargs
-            )
-
-            metrics = {
-                "position": position,
-                "layer": layer,
-                "target": target_field,
-                "k_folds": 0,  # No CV performed
-                "n_train": len(train_data),
-                "n_val": len(val_data),
-                "n_test": len(test_data),
-                **training_info,
-            }
-        else:
-            # Mode 1: True K-fold CV
-            trainval_data = merge_datasets(train_data, val_data)
-            logger.info(f"Performing {k_folds}-fold CV on {len(trainval_data)} samples")
-
-            # Perform K-fold CV to estimate generalization
-            cv_aucs = []
-            cv_losses = []
-
-            # Create stratified folds
-            targets = np.array([s[target_field] for s in trainval_data])
-            skf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=self.seed)
-
-            for fold_idx, (train_idx, val_idx) in enumerate(skf.split(np.zeros(len(targets)), targets)):
-                logger.info(f"Training fold {fold_idx + 1}/{k_folds}")
-
-                # Split data
-                fold_train = [trainval_data[i] for i in train_idx]
-                fold_val = [trainval_data[i] for i in val_idx]
-
-                # Train model on fold
-                fold_model, _ = self.fit(
-                    fold_train,
-                    position=position,
-                    layer=layer,
-                    target_field=target_field,
-                    weight_field=weight_field,
-                    answer_field=answer_field,
-                    val_dataset=None,  # No early stopping during CV
-                    verbose=False,
-                    **kwargs
-                )
-
-                # Evaluate on fold validation set
-                fold_preds = self.predict(
-                    fold_model, fold_val, position, layer,
-                    add_to_dataset=False
-                )
-                fold_targets = np.array([s[target_field] for s in fold_val])
-
-                try:
-                    fold_auc = roc_auc_score(fold_targets, fold_preds)
-                    cv_aucs.append(fold_auc)
-                except ValueError:
-                    pass
-
-                try:
-                    fold_loss = log_loss(fold_targets, fold_preds)
-                    cv_losses.append(fold_loss)
-                except ValueError:
-                    pass
-
-            # Train final model on full trainval
-            logger.info(f"Training final model on {len(trainval_data)} samples")
-            final_model, training_info = self.fit(
-                trainval_data,
-                position=position,
-                layer=layer,
-                target_field=target_field,
-                weight_field=weight_field,
-                answer_field=answer_field,
-                val_dataset=None,
-                verbose=True,
-                **kwargs
-            )
-
-            metrics = {
-                "position": position,
-                "layer": layer,
-                "target": target_field,
-                "k_folds": k_folds,
-                "n_trainval": len(trainval_data),
-                "n_test": len(test_data),
-                "cv_auc_mean": float(np.mean(cv_aucs)) if cv_aucs else np.nan,
-                "cv_auc_std": float(np.std(cv_aucs)) if cv_aucs else np.nan,
-                "cv_logloss_mean": float(np.mean(cv_losses)) if cv_losses else np.nan,
-                "cv_logloss_std": float(np.std(cv_losses)) if cv_losses else np.nan,
-                **training_info,
-            }
-
-        # Evaluate on test set
-        if compute_metrics:
-            test_preds = self.predict(
-                final_model, test_data, position, layer,
-                add_to_dataset=False
-            )
-            test_targets = np.array([s[target_field] for s in test_data])
-
-            try:
-                test_auc = roc_auc_score(test_targets, 1 - test_preds)  # Invert for correctness
-                metrics['test_auc'] = float(test_auc)
-            except ValueError:
-                metrics['test_auc'] = np.nan
-
-            try:
-                test_logloss = log_loss(test_targets, 1 - test_preds)
-                metrics['test_logloss'] = float(test_logloss)
-            except ValueError:
-                metrics['test_logloss'] = np.nan
-
-        return final_model, metrics
-
     def train_every_combination(
         self,
         train_data: Union[BaseDataset, list[dict]],
@@ -899,16 +720,21 @@ class PEPTrainer(BaseProbeTrainer):
         weight_field: Optional[str] = None,
         use_weights_for_targets: Optional[str] = None,
         answer_field: str = 'greedy_answer',
-        use_cv: bool = True,
+        use_cv: bool = False,
         use_val_for_early_stopping: bool = True,
         verbose: bool = True,
-        do_test_eval = True,
+        do_test_eval: bool = True,
+        return_history: bool = False,
+        checkpoint_dir_base: Optional[str] = None,
+        save_all_models: bool = False,
+        best_model_dir: Optional[str] = None,
+        selection_metric: str = 'best_metric',
         **kwargs
     ) -> list[dict]:
         """
         Train PEP models for all combinations of positions, layers, and targets.
 
-        Similar to ProbeManager.train_every_combination but for PEP models.
+        Saves models to disk and tracks the globally best model.
 
         Args:
             train_data: Training dataset
@@ -923,16 +749,29 @@ class PEPTrainer(BaseProbeTrainer):
             answer_field: Field containing generated answers
             use_cv: Whether to use cross-validation
             verbose: Whether to print progress
+            return_history: Whether to return training history
+            checkpoint_dir_base: Base directory for training checkpoints (during training)
+            save_all_models: If True, save each trained model to disk
+            best_model_dir: Directory to save the globally best model (single file)
+            selection_metric: Metric to use for selecting best model
             **kwargs: Additional arguments
 
         Returns:
-            List of result dicts with keys: position, layer, target, probe, metrics
+            List of result dicts with keys: position, layer, target, model_path, metrics
+            (NO 'probe' key - models are saved to disk)
         """
         use_weights_for_targets = use_weights_for_targets or []
         results = []
 
         total = len(positions) * len(layers) * len(targets)
         current = 0
+
+        # Store original checkpoint_dir to restore later
+        original_checkpoint_dir = self.checkpoint_dir
+
+        # Track globally best model
+        best_metric_value = float('-inf')
+        best_model_info = None
 
         for position in positions:
             for layer in layers:
@@ -944,98 +783,103 @@ class PEPTrainer(BaseProbeTrainer):
                             f"pos={position}, layer={layer}, target={target}"
                         )
 
+                    # Set unique checkpoint directory for this model
+                    if checkpoint_dir_base:
+                        self.checkpoint_dir = str(
+                            Path(checkpoint_dir_base) / f"pos{position}_layer{layer}_{target}"
+                        )
+                    else:
+                        self.checkpoint_dir = None
+
                     # Determine if we should use weights for this target
                     use_weights = target in use_weights_for_targets
                     current_weight_field = weight_field if use_weights else None
 
-                    logger.debug(f"DEBUG: use_cv={use_cv}, use_val_for_early_stopping={use_val_for_early_stopping}")
-                    logger.debug(f"DEBUG: train_data size={len(train_data)}, val_data size={len(val_data)}")
-
                     if use_cv:
-                        # Train with CV
-                        model, metrics = self.train_cv(
-                            train_data, val_data, test_data,
-                            position=position,
-                            layer=layer,
-                            target_field=target,
-                            k_folds=k_folds,
-                            weight_field=current_weight_field,
-                            answer_field=answer_field,
-                            compute_metrics=True,
-                            use_val_for_early_stopping=use_val_for_early_stopping,
-                            **kwargs
-                        )
-                    else:
-                        # Train without CV - use train only, val for early stopping if requested
-                        if use_val_for_early_stopping:
-                            logger.debug(f"DEBUG: Training on train_data ({len(train_data)} samples) with val_data ({len(val_data)} samples) for early stopping")
-                            # Train on train_data, validate on val_data
-                            model, training_info = self.fit(
-                                train_data,
-                                position=position,
-                                layer=layer,
-                                target_field=target,
-                                weight_field=current_weight_field,
-                                answer_field=answer_field,
-                                val_dataset=val_data,
-                                verbose=verbose,
-                                **kwargs
-                            )
-                        else:
-                            # Train on merged train+val
-                            from src.training.utils import merge_datasets
-                            trainval = merge_datasets(train_data, val_data)
-                            logger.debug(f"DEBUG: Training on merged trainval ({len(trainval)} samples)")
+                        logger.warning("use_cv is not supported for PEP, training without cv")
 
-                            model, training_info = self.fit(
-                                trainval,
-                                position=position,
-                                layer=layer,
-                                target_field=target,
-                                weight_field=current_weight_field,
-                                answer_field=answer_field,
-                                val_dataset=None,
-                                verbose=verbose,
-                                **kwargs
-                            )
+                    # Train model
+                    model, training_info = self.fit(
+                        train_data,
+                        position=position,
+                        layer=layer,
+                        target_field=target,
+                        weight_field=current_weight_field,
+                        answer_field=answer_field,
+                        val_dataset=val_data,
+                        return_history=return_history,
+                        verbose=verbose,
+                        **kwargs
+                    )
 
-                        metrics = {
+                    # Save model to disk if requested
+                    model_path = None
+                    if save_all_models and checkpoint_dir_base:
+                        models_dir = Path(checkpoint_dir_base).parent / 'all_models'
+                        models_dir.mkdir(parents=True, exist_ok=True)
+                        model_path = models_dir / f"pep_pos{position}_layer{layer}_{target}.pt"
+                        model.save(str(model_path))
+                        logger.info(f"Saved model to {model_path}")
+
+                    # Build result dict (without model object)
+                    result = {
+                        'position': position,
+                        'layer': layer,
+                        'target': target,
+                        'model_path': str(model_path) if model_path else None,
+                        **training_info
+                    }
+                    results.append(result)
+
+                    # Check if this is the globally best model
+                    metric_value = training_info.get(selection_metric)
+                    if metric_value is not None and metric_value > best_metric_value:
+                        best_metric_value = metric_value
+                        best_model_info = {
+                            'model': model,
                             'position': position,
                             'layer': layer,
                             'target': target,
-                            **training_info,  # Add training info
+                            'metric_value': metric_value
                         }
 
-                        if not do_test_eval:
-                            continue
+                        # Save best model immediately (overwrite previous best)
+                        if best_model_dir:
+                            best_dir = Path(best_model_dir)
+                            best_dir.mkdir(parents=True, exist_ok=True)
 
-                        # Compute test metrics
-                        test_preds = self.predict(
-                            model, test_data,
-                            position=position, layer=layer,
-                            add_to_dataset=False
-                        )
+                            # Single file for best model
+                            best_path = best_dir / "best_model.pt"
+                            model.save(str(best_path))
 
-                        test_targets = np.array([s[target] for s in test_data])
+                            # Save metadata
+                            import json
+                            metadata = {
+                                'position': position,
+                                'layer': layer,
+                                'target': target,
+                                selection_metric: float(metric_value)
+                            }
+                            metadata_path = best_dir / "best_model_info.json"
+                            with open(metadata_path, 'w') as f:
+                                json.dump(metadata, f, indent=2)
 
-                        try:
-                            test_auc = roc_auc_score(test_targets, 1 - test_preds)
-                        except ValueError:
-                            test_auc = np.nan
+                            if verbose:
+                                logger.info(
+                                    f"  New best model saved: {selection_metric}={metric_value:.4f} "
+                                    f"(layer={layer}, pos={position})"
+                                )
 
-                        try:
-                            test_logloss = log_loss(test_targets, 1 - test_preds)
-                        except ValueError:
-                            test_logloss = np.nan
-
-                        metrics = metrics | {'test_auc': test_auc, 'test_logloss': test_logloss}
-
-                    results.append({
-                        'probe': model,
-                        **metrics
-                    })
+        # Restore original checkpoint_dir
+        self.checkpoint_dir = original_checkpoint_dir
 
         if verbose:
             logger.info(f"Trained {len(results)} PEP models")
+            if best_model_info:
+                logger.info(
+                    f"Best model: layer={best_model_info['layer']}, "
+                    f"pos={best_model_info['position']}, "
+                    f"{selection_metric}={best_model_info['metric_value']:.4f}"
+                )
 
         return results

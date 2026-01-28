@@ -209,12 +209,15 @@ class ProbeManager(BaseProbeTrainer):
         """
         Train probe with cross-validation.
 
-        Based on train_and_eval_probe_cv() from semantic_entropy_probes.ipynb (lines 1452-1580).
+        Cross-validation is performed on train+val data to estimate generalization,
+        but the final probe is trained ONLY on train_data to avoid data leakage.
+        The final probe is then evaluated on test_data (which is actually val_data
+        in the Method context).
 
         Args:
             train_data: Training dataset
-            val_data: Validation dataset
-            test_data: Test dataset
+            val_data: Validation dataset (used for CV and final evaluation)
+            test_data: Test dataset (used for final evaluation)
             position: Token position
             layer: Layer index
             target_field: Target field name
@@ -225,9 +228,9 @@ class ProbeManager(BaseProbeTrainer):
         Returns:
             Tuple of (trained_probe, metrics_dict)
             metrics_dict contains:
-                - cv_auc_mean, cv_auc_std
+                - cv_auc_mean, cv_auc_std (from train+val CV)
                 - cv_logloss_mean, cv_logloss_std
-                - test_auc, test_logloss
+                - test_auc, test_logloss (final probe on test_data)
                 - n_trainval, n_test, n_iter_used
 
         Example:
@@ -239,14 +242,21 @@ class ProbeManager(BaseProbeTrainer):
             >>> print(f"CV AUC: {metrics['cv_auc_mean']:.3f} ± {metrics['cv_auc_std']:.3f}")
             >>> print(f"Test AUC: {metrics['test_auc']:.3f}")
         """
-        # Merge train and val for cross-validation
+        # Merge train and val for cross-validation metrics
         trainval_data = merge_datasets(train_data, val_data)
 
-        # Extract data
+        # Extract data for CV
         w_field = weight_field if weight_field else None
         X_tv, y_tv, w_tv = build_Xy_from_dataset(
             trainval_data, position, layer, target_field, w_field
         )
+
+        # Extract train data for final model
+        X_train, y_train, w_train = build_Xy_from_dataset(
+            train_data, position, layer, target_field, w_field
+        )
+
+        # Extract test data for evaluation
         X_test, y_test, _ = build_Xy_from_dataset(
             test_data, position, layer, target_field, None
         )
@@ -260,7 +270,7 @@ class ProbeManager(BaseProbeTrainer):
             "n_test": int(len(y_test)),
         }
 
-        # Check class balance
+        # Check class balance for CV
         unique_classes, class_counts = np.unique(y_tv, return_counts=True)
         min_class_count = int(class_counts.min())
 
@@ -279,18 +289,18 @@ class ProbeManager(BaseProbeTrainer):
                 UserWarning
             )
 
-        # Compute CV metrics if requested
+        # Compute CV metrics on train+val if requested
         if compute_metrics:
             cv = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=self.seed)
             probe_for_cv = self._create_probe()
             cv_metrics = compute_cv_metrics(probe_for_cv, X_tv, y_tv, cv, w_tv)
             metrics.update(cv_metrics)
 
-        # Train final model on full trainval
+        # Train final model ONLY on train_data (not train+val) to avoid data leakage
         final_probe = self._create_probe()
-        final_probe.fit(X_tv, y_tv, sample_weight=w_tv)
+        final_probe.fit(X_train, y_train, sample_weight=w_train)
 
-        # Compute test metrics
+        # Compute test metrics (evaluating on test_data which is val_data in Method context)
         if compute_metrics:
             test_metrics = compute_test_metrics(final_probe, X_test, y_test)
             metrics.update(test_metrics)

@@ -13,7 +13,14 @@ import logging
 
 import torch
 import torch.nn.functional as F
-from transformers import GenerationConfig, PreTrainedModel, PreTrainedTokenizer
+from transformers import (
+    GenerationConfig,
+    PreTrainedModel,
+    PreTrainedTokenizer,
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +66,89 @@ class ModelWrapper(ABC):
         logger.info(
             f"Initialized {self.__class__.__name__} on device {self.device}"
         )
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name: str,
+        system_prompt: str = "",
+        quantization: Optional[str] = None,
+        device_map: str = "auto",
+        **kwargs
+    ) -> 'ModelWrapper':
+        """
+        Factory method to create appropriate ModelWrapper from model name.
+
+        Automatically detects model type from name and creates the right wrapper.
+
+        Args:
+            model_name: HuggingFace model name or path
+            system_prompt: Optional system prompt for all generations
+            quantization: Quantization type: "8bit", "4bit", or None
+            device_map: Device map for model loading
+            **kwargs: Additional arguments for model loading
+
+        Returns:
+            Appropriate ModelWrapper subclass instance
+
+        Example:
+            >>> wrapper = ModelWrapper.from_pretrained(
+            ...     "mistralai/Mistral-7B-Instruct-v0.1",
+            ...     quantization="8bit"
+            ... )
+        """
+        # Import here to avoid circular imports
+        from src.model.mistral import MistralModel
+        from src.model.gpt2 import GPT2Model
+
+        logger.info(f"Loading model: {model_name}")
+
+        # Setup quantization if requested
+        quant_config = None
+        if quantization == '8bit':
+            quant_config = BitsAndBytesConfig(load_in_8bit=True)
+        elif quantization == '4bit':
+            quant_config = BitsAndBytesConfig(load_in_4bit=True)
+
+        # Load model and tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            device_map=device_map,
+            quantization_config=quant_config,
+            **kwargs
+        )
+
+        # Setup padding
+        tokenizer.pad_token = tokenizer.eos_token
+        model.config.pad_token_id = tokenizer.pad_token_id
+        if hasattr(model, 'generation_config'):
+            model.generation_config.pad_token_id = tokenizer.pad_token_id
+
+        # Detect model type from name and create appropriate wrapper
+        model_name_lower = model_name.lower()
+
+        if 'mistral' in model_name_lower:
+            wrapper = MistralModel(
+                model=model,
+                tokenizer=tokenizer,
+                system_prompt=system_prompt
+            )
+            logger.info(f"Created MistralModel wrapper")
+        elif 'gpt2' in model_name_lower or 'gpt-2' in model_name_lower:
+            wrapper = GPT2Model(
+                model=model,
+                tokenizer=tokenizer,
+                system_prompt=system_prompt
+            )
+            logger.info(f"Created GPT2Model wrapper")
+        else:
+            raise ValueError(
+                f"Unknown model type for '{model_name}'. "
+                f"Supported: mistral, gpt2"
+            )
+
+        return wrapper
 
     def prepare_inputs(
         self,
